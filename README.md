@@ -125,7 +125,7 @@ REACT_APP_API_URL=http://localhost:5000/api
 
 
 📞 Contact
-For questions or demo requests, contact dgav3105@gmail.com,ahmedsiddiquefarhan@gmail.com,jaivardhansingh785@gmail.com
+For questions or demo requests, contact dgav3105@gmail.com,ahmedsiddiquefarhan@gmail.com,jaivardhansingh785@gmail.com, aryanbalhara3700@gmail.com
 
 **Transforming legal document analysis with AI technology.**
 **Powered by cutting-edge artificial intelligence.**
