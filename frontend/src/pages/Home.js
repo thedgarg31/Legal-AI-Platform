@@ -1,237 +1,194 @@
-/*import React from 'react';
+import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Home = () => {
-    return (
-        <div>
-            <section className="hero-section">
-                <div className="hero-content fade-in-up">
-                    <h1 className="hero-title">
-                        AI-Powered Legal Document Analysis
-                    </h1>
-                    <p className="hero-subtitle">
-                        Transform your legal workflow with cutting-edge artificial intelligence. 
-                        Analyze contracts, identify risks, and get expert recommendations in seconds.
-                    </p>
-                    <div className="hero-actions">
-                        <a href="/document-analysis" className="btn btn-primary">
-                            <span className="ai-badge" style={{marginRight: '8px'}}>AI</span>
-                            Analyze Document
-                        </a>
-                        <a href="/find-lawyer" className="btn btn-secondary">
-                            Find Expert Lawyer
-                        </a>
-                    </div>
-                </div>
-            </section>
-
-            <section style={{ padding: '4rem 2rem' }}>
-                <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                    <div style={{ 
-                        display: 'grid', 
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
-                        gap: '2rem' 
-                    }}>
-                        <div className="card fade-in-up">
-                            <h3 className="gradient-text" style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-                                Smart Risk Detection
-                            </h3>
-                            <p style={{ color: '#a0a0a0', lineHeight: '1.6' }}>
-                                Our AI instantly identifies potential risks and problematic clauses in your legal documents.
-                            </p>
-                        </div>
-                        
-                        <div className="card fade-in-up">
-                            <h3 className="gradient-text" style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-                                Visual Highlighting
-                            </h3>
-                            <p style={{ color: '#a0a0a0', lineHeight: '1.6' }}>
-                                Get color-coded analysis with red flags for risks and green highlights for safe clauses.
-                            </p>
-                        </div>
-                        
-                        <div className="card fade-in-up">
-                            <h3 className="gradient-text" style={{ fontSize: '1.5rem', marginBottom: '1rem' }}>
-                                Expert Connections
-                            </h3>
-                            <p style={{ color: '#a0a0a0', lineHeight: '1.6' }}>
-                                Connect with qualified lawyers who specialize in your specific legal needs.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </section>
+  return (
+    <div style={{ background: '#ffffff', minHeight: '100vh' }}>
+      {/* Hero Section - Matching Screenshot */}
+      <section style={{
+        background: '#f8f9fa',
+        padding: '4rem 2rem',
+        textAlign: 'center',
+        minHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center'
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <h1 style={{
+            fontSize: '3.5rem',
+            color: '#0E0F22',
+            marginBottom: '1.5rem',
+            fontWeight: 'bold',
+            lineHeight: '1.2'
+          }}>
+            Create Legal Documents & <span style={{
+              color: '#666FD0'
+            }}>Talk to Lawyers</span> Online
+          </h1>
+          
+          <p style={{
+            fontSize: '1.3rem',
+            color: '#6c757d',
+            marginBottom: '1rem',
+            lineHeight: '1.6'
+          }}>
+            Professional legal forms, contracts, and expert advice at your fingertips.
+          </p>
+          <p style={{
+            fontSize: '1.1rem',
+            color: '#6c757d',
+            marginBottom: '3rem'
+          }}>
+            Save time, money, and stress—get started in minutes!
+          </p>
+          
+          <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link to="/document-analysis" style={{
+              background: '#666FD0',
+              color: 'white',
+              padding: '1rem 2.5rem',
+              fontSize: '1.1rem',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              boxShadow: '0 4px 15px rgba(102, 111, 208, 0.3)',
+              transition: 'all 0.3s ease',
+              textDecoration: 'none',
+              display: 'inline-block'
+            }}>
+              📄 AI Document Analyzer
+            </Link>
+            <Link to="/chat" style={{
+              background: 'transparent',
+              color: '#666FD0',
+              padding: '1rem 2.5rem',
+              fontSize: '1.1rem',
+              border: '2px solid #666FD0',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 'bold',
+              transition: 'all 0.3s ease',
+              textDecoration: 'none',
+              display: 'inline-block'
+            }}>
+              💬 Talk to a Lawyer
+            </Link>
+          </div>
         </div>
-    );
-};
+      </section>
 
-export default Home;
-*/
-import React from "react";
-import "./home.css"; // See CSS below
-
-const experts = [
-  {
-    name: "Kavitha Natesan",
-    expertise: "Cheque bounce cases, GST consulting",
-    experience: "5 years",
-    desc: "Offers practical solutions for legal and tax matters."
-  },
-  {
-    name: "Srijita",
-    expertise: "Accident claims, employment issues, consumer complaints",
-    experience: "5 years",
-    desc: "Provides timely and strategic legal support."
-  },
-  // ...add more experts
-];
-
-const Home = () => (
-  <div className="lt-main">
-    <header className="lt-hero">
-      <h1>
-        Create Legal Documents &amp; <span className="lt-accent">Talk to Lawyers</span> Online
-      </h1>
-      <p>
-        Professional legal forms, contracts, and expert advice at your fingertips.<br />
-        Save time, money, and stress—get started in minutes!
-      </p>
-      <div className="lt-cta-row">
-        <a href="/document-analysis" className="lt-btn lt-btn-primary">AI Document Analyzer</a>
-        <a href="/find-lawyer" className="lt-btn lt-btn-secondary">Talk to a Lawyer</a>
-      </div>
-    </header>
-
-    <section className="lt-section lt-how" style={{
-  background: '#f7faff',
-  borderRadius: '12px',
-  margin: '0.5rem 0',
-  padding: '0.5rem 0'
-}}>
-  <h2 style={{
-    fontWeight: 'bold',
-    fontSize: '2rem',
-    textAlign: 'center',
-    marginBottom: '0.5rem',
-    color: '#3b82f6'
-  }}>
-    How It Works!!!
-  </h2>
-<div className="lt-steps" style={{
-    display: 'flex',
-    justifyContent: 'right',
-    gap: '2rem',
-    flexWrap: 'wrap',
-    padding: '0 1rem'
-  }}>
-    <div className="lt-step" style={{ maxWidth: '220px', textAlign: 'center' }}>
-      <span className="lt-step-num" style={{
-        fontSize: '1.5rem',
-        fontWeight: 'bold',
-        color: '#3b82f6',
-        display: 'block',
-        marginBottom: '0.5rem',
-        background: 'none',       // Remove background color
-        borderRadius: '0'
-      }}>1</span>
-      <h3>Choose Your Legal Form</h3>
-      <p>Browse 160+ legal contracts &amp; documents.</p>
-    </div>
-
-    <div className="lt-step" style={{ maxWidth: '220px', textAlign: 'center' }}>
-      <span className="lt-step-num" style={{
-        fontSize: '1.5rem',
-        fontWeight: 'bold',
-        color: '#3b82f6',
-        display: 'block',
-        marginBottom: '0.5rem',
-        background: 'none',       // Remove background color
-        borderRadius: '0'
-      }}>2</span>
-      <h3>Answer Simple Questions</h3>
-      <p>Our contract creator customizes your form.</p>
-    </div>
-
-    <div className="lt-step" style={{ maxWidth: '220px', textAlign: 'center' }}>
-      <span className="lt-step-num" style={{
-        fontSize: '1.5rem',
-        fontWeight: 'bold',
-        color: '#3b82f6',
-        display: 'block',
-        marginBottom: '0.5rem',
-        background: 'none',       // Remove background color
-        borderRadius: '0'
-      }}>3</span>
-      <h3>Download &amp; Sign</h3>
-      <p>Download, print, or e-sign your legal document.</p>
-    </div>
-  </div>
-</section>
-
-    <section className="lt-section lt-experts">
-      <h2>Our Legal Experts</h2>
-      <div className="lt-expert-cards">
-        {experts.map((expert, idx) => (
-          <div className="lt-expert-card" key={idx}>
-            <div className="lt-expert-avatar">{expert.name[0]}</div>
-            <div>
-              <h3>{expert.name}</h3>
-              <p className="lt-expert-exp">{expert.experience} experience</p>
-              <p className="lt-expert-desc">{expert.expertise}</p>
-              <p className="lt-expert-desc2">{expert.desc}</p>
+      {/* How It Works Section - Matching Screenshot */}
+      <section style={{
+        padding: '4rem 2rem',
+        background: '#ffffff'
+      }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+          <h2 style={{
+            textAlign: 'center',
+            fontSize: '2.5rem',
+            color: '#666FD0',
+            marginBottom: '3rem',
+            fontWeight: 'bold'
+          }}>
+            How It Works!!!
+          </h2>
+          
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+            gap: '2rem' 
+          }}>
+            <div style={{
+              textAlign: 'center',
+              padding: '2rem',
+              background: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e9ecef',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ 
+                fontSize: '2rem', 
+                color: '#666FD0', 
+                fontWeight: 'bold', 
+                marginBottom: '1rem' 
+              }}>1</div>
+              <h3 style={{ color: '#0E0F22', marginBottom: '1rem' }}>Choose Your Legal Form</h3>
+              <p style={{ color: '#6c757d', lineHeight: '1.6' }}>
+                Browse 160+ legal contracts & documents.
+              </p>
+            </div>
+            
+            <div style={{
+              textAlign: 'center',
+              padding: '2rem',
+              background: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e9ecef',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ 
+                fontSize: '2rem', 
+                color: '#666FD0', 
+                fontWeight: 'bold', 
+                marginBottom: '1rem' 
+              }}>2</div>
+              <h3 style={{ color: '#0E0F22', marginBottom: '1rem' }}>Answer Simple Questions</h3>
+              <p style={{ color: '#6c757d', lineHeight: '1.6' }}>
+                Our contract creator customizes your form.
+              </p>
+            </div>
+            
+            <div style={{
+              textAlign: 'center',
+              padding: '2rem',
+              background: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e9ecef',
+              boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+            }}>
+              <div style={{ 
+                fontSize: '2rem', 
+                color: '#666FD0', 
+                fontWeight: 'bold', 
+                marginBottom: '1rem' 
+              }}>3</div>
+              <h3 style={{ color: '#0E0F22', marginBottom: '1rem' }}>Download & Sign</h3>
+              <p style={{ color: '#6c757d', lineHeight: '1.6' }}>
+                Download, print, or e-sign your legal document.
+              </p>
             </div>
           </div>
-        ))}
-      </div>
-    </section>
+        </div>
+      </section>
 
-
-  <section class="stats-section">
-  <div class="stats-container">
-    <div class="stat-box highlight">
-      <h3>+2</h3>
-      <p>Years In Business</p>
+      {/* Our Legal Experts Section */}
+      <section style={{
+        padding: '4rem 2rem',
+        background: '#f8f9fa',
+        textAlign: 'center'
+      }}>
+        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+          <h2 style={{
+            fontSize: '2.5rem',
+            color: '#666FD0',
+            marginBottom: '2rem',
+            fontWeight: 'bold'
+          }}>
+            Our Legal Experts
+          </h2>
+          <p style={{
+            fontSize: '1.2rem',
+            color: '#6c757d',
+            lineHeight: '1.6'
+          }}>
+            Connect with qualified legal professionals who can provide expert guidance for your specific needs.
+          </p>
+        </div>
+      </section>
     </div>
-    <div class="stat-box highlight">
-      <h3>+20M</h3>
-      <p>Documents Created</p>
-    </div>
-    <div class="stat-box highlight">
-      <h3>+2M</h3>
-      <p>Registered Customers</p>
-    </div>
-    <div class="stat-box highlight">
-      <h3>+3M</h3>
-      <p>Analyzed Documents</p>
-    </div>
-    <div class="stat-box highlight">
-      <h3>+30M</h3>
-      <p>Customers helped</p>
-    </div>
-    <div class="stat-box highlight">
-      <h3>+10M</h3>
-      <p>Lawyers Registered</p>
-    </div>
-    <div class="stat-box highlight">
-      <h3>+5</h3>
-      <p>Years of Lawyers Registered</p>
-    </div>
-  </div>
-</section>
-
-
-
-
-    <section className="lt-section lt-testimonials">
-      <h2>What Our Users Say</h2>
-      <blockquote>
-        “Got the best legal advice for my startup. The team was knowledgeable and responsive. Highly recommended!”
-        <footer>— Sai Abhishek</footer>
-      </blockquote>
-      {/* Add more testimonials as needed */}
-    </section>
-
-    
-  </div>
-);
+  );
+};
 
 export default Home;
