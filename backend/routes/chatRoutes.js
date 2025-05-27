@@ -1,32 +1,85 @@
 const express = require('express');
-const multer = require('multer');
-const { uploadAndPrepareDocument, chatWithDocument } = require('../controllers/chatController');
+const Message = require('../models/Message');
+const ChatRoom = require('../models/ChatRoom');
+const User = require('../models/User');
 const router = express.Router();
 
-// Configure multer for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024 // 10MB limit
-  },
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype === 'application/pdf') {
-      cb(null, true);
-    } else {
-      cb(new Error('Only PDF files are allowed'));
-    }
+// Get chat messages by chatRoomId
+router.get('/messages/:chatRoomId', async (req, res) => {
+  try {
+    const { chatRoomId } = req.params;
+    
+    const messages = await Message.find({ chatRoomId })
+      .populate('senderId', 'name email')
+      .sort({ timestamp: 1 });
+    
+    res.json({ success: true, messages });
+  } catch (error) {
+    console.error('❌ Get messages error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
-// Test route
-router.get('/test', (req, res) => {
-  res.json({ message: 'Chat API is working!' });
+// Save message
+router.post('/message', async (req, res) => {
+  try {
+    const { chatRoomId, senderId, senderType, senderName, message, messageId, timestamp, isDocumentNotification, documentId } = req.body;
+    
+    const newMessage = new Message({ 
+      chatRoomId, 
+      senderId, 
+      senderType, 
+      senderName,
+      message, 
+      messageId, 
+      timestamp: timestamp || new Date(),
+      isDocumentNotification: isDocumentNotification || false,
+      documentId
+    });
+    
+    await newMessage.save();
+
+    // Update chat room's last message
+    await ChatRoom.findOneAndUpdate(
+      { chatRoomId },
+      { 
+        lastMessage: message,
+        lastMessageTime: new Date()
+      }
+    );
+
+    console.log('💾 Message saved to database:', messageId);
+    
+    res.json({ success: true, message: newMessage });
+  } catch (error) {
+    console.error('❌ Save message error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
 });
 
-// Upload PDF and prepare for chat
-router.post('/upload', upload.single('pdf'), uploadAndPrepareDocument);
+// Get user's chat rooms
+router.get('/rooms/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { userType } = req.query;
 
-// Chat with uploaded document
-router.post('/chat', chatWithDocument);
+    let chatRooms;
+    
+    if (userType === 'client') {
+      chatRooms = await ChatRoom.find({ clientId: userId })
+        .populate('lawyerId', 'personalInfo.fullName')
+        .sort({ lastMessageTime: -1 });
+    } else if (userType === 'lawyer') {
+      chatRooms = await ChatRoom.find({ lawyerId: userId })
+        .populate('clientId', 'name email')
+        .sort({ lastMessageTime: -1 });
+    }
+
+    res.json({ success: true, chatRooms });
+  } catch (error) {
+    console.error('❌ Get chat rooms error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
 
 module.exports = router;

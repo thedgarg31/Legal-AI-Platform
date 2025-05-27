@@ -4,12 +4,14 @@ import io from 'socket.io-client';
 import { getLawyerById } from '../api/lawyers';
 import { createChatRoom } from '../api/realTimeChat';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import DocumentUpload from '../components/DocumentUpload';
 import DocumentAnalysis from '../components/DocumentAnalysis';
 
 const ChatRoom = () => {
   const { lawyerId } = useParams();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [lawyer, setLawyer] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -21,7 +23,10 @@ const ChatRoom = () => {
   const [documents, setDocuments] = useState([]);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const messagesEndRef = useRef(null);
-  const clientId = 'client_' + Date.now();
+
+  // ✅ USE AUTHENTICATED USER ID AND NAME
+  const clientId = user?.id || 'anonymous';
+  const clientName = user?.name || 'Anonymous User';
 
   useEffect(() => {
     let mounted = true;
@@ -30,6 +35,7 @@ const ChatRoom = () => {
     const initializeChat = async () => {
       try {
         console.log('🔄 Initializing chat with lawyer:', lawyerId);
+        console.log('👤 Client user:', user);
         
         const lawyerResult = await getLawyerById(lawyerId);
         if (lawyerResult.success && mounted) {
@@ -45,18 +51,21 @@ const ChatRoom = () => {
 
           // Create socket connection only once
           socketInstance = io('http://localhost:5000', {
-            forceNew: true, // Force new connection
+            forceNew: true,
             transports: ['websocket', 'polling']
           });
           
           setSocket(socketInstance);
 
-          // Set up event listeners only once
           socketInstance.on('connect', () => {
             console.log('✅ Client socket connected:', socketInstance.id);
             if (mounted) {
               setIsConnected(true);
-              socketInstance.emit('user_join', { userId: clientId, userType: 'client' });
+              socketInstance.emit('user_join', { 
+                userId: clientId, 
+                userType: 'client',
+                userName: clientName
+              });
               socketInstance.emit('join_chat', { lawyerId, clientId, chatRoomId: roomId });
             }
           });
@@ -71,7 +80,6 @@ const ChatRoom = () => {
             if (mounted) setIsConnected(false);
           });
 
-          // ✅ CRITICAL: Remove existing listeners before adding new ones
           socketInstance.off('receive_message');
           socketInstance.on('receive_message', (messageData) => {
             console.log('📥 Received message:', messageData);
@@ -113,7 +121,6 @@ const ChatRoom = () => {
 
     initializeChat();
 
-    // ✅ CLEANUP: Remove all listeners and disconnect socket
     return () => {
       mounted = false;
       if (socketInstance) {
@@ -128,30 +135,27 @@ const ChatRoom = () => {
         console.log('🧹 Socket cleaned up and disconnected');
       }
     };
-  }, [lawyerId]);
+  }, [lawyerId, user]);
 
   const handleDocumentUpload = (document) => {
     console.log('📄 Document uploaded:', document);
     setDocuments(prev => [document, ...prev]);
     setShowDocumentUpload(false);
     
-    // Send notification message to chat
     if (socket && chatRoomId) {
       const notificationMessage = {
         chatRoomId,
         message: `📄 Document uploaded: ${document.originalName}`,
         senderId: clientId,
         senderType: 'client',
+        senderName: clientName,
         messageId: `${Date.now()}_${clientId}_doc_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date(),
         isDocumentNotification: true,
         documentId: document.id
       };
       
-      // Add to UI immediately
       setMessages(prev => [...prev, notificationMessage]);
-      
-      // Send to server
       socket.emit('send_message', notificationMessage);
     }
   };
@@ -163,26 +167,24 @@ const ChatRoom = () => {
         message: currentMessage,
         senderId: clientId,
         senderType: 'client',
+        senderName: clientName,
         messageId: `${Date.now()}_${clientId}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date()
       };
       
       console.log('📤 Sending message:', messageData);
       
-      // Clear input immediately
       setCurrentMessage('');
       
-      // Add to UI immediately (optimistic update)
       setMessages(prev => {
         const exists = prev.some(msg => msg.messageId === messageData.messageId);
         if (exists) return prev;
         return [...prev, messageData];
       });
       
-      // Send to server
       socket.emit('send_message', messageData);
     }
-  }, [currentMessage, socket, chatRoomId, isConnected, clientId]);
+  }, [currentMessage, socket, chatRoomId, isConnected, clientId, clientName]);
 
   const handleTyping = useCallback((typing) => {
     if (socket && chatRoomId) {
@@ -194,7 +196,6 @@ const ChatRoom = () => {
     }
   }, [socket, chatRoomId, clientId]);
 
-  // ✅ SEPARATE useEffect for scrolling
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -300,13 +301,12 @@ const ChatRoom = () => {
               fontSize: '14px', 
               color: theme.textSecondary
             }}>
-              Client Portal
+              Client Portal - {clientName}
             </p>
           </div>
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Connection Status */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -469,7 +469,6 @@ const ChatRoom = () => {
             </div>
           )}
           
-          {/* Show uploaded documents */}
           {documents.length > 0 && (
             <div style={{
               maxWidth: '800px',
@@ -528,7 +527,6 @@ const ChatRoom = () => {
                     alignItems: 'flex-end',
                     gap: '8px'
                   }}>
-                    {/* Avatar */}
                     <div style={{
                       width: '32px',
                       height: '32px',
@@ -545,7 +543,6 @@ const ChatRoom = () => {
                       {message.senderType === 'client' ? '👤' : '⚖️'}
                     </div>
 
-                    {/* Message Bubble */}
                     <div style={{
                       background: message.isDocumentNotification 
                         ? `${theme.accent}20` 
@@ -563,17 +560,15 @@ const ChatRoom = () => {
                       position: 'relative',
                       border: message.isDocumentNotification ? `1px solid ${theme.accent}50` : 'none'
                     }}>
-                      {/* Sender Name */}
                       <div style={{
                         fontSize: '12px',
                         fontWeight: '600',
                         marginBottom: '4px',
                         opacity: 0.8
                       }}>
-                        {message.senderType === 'client' ? 'You' : lawyer?.personalInfo.fullName}
+                        {message.senderName || (message.senderType === 'client' ? clientName : lawyer?.personalInfo.fullName)}
                       </div>
                       
-                      {/* Message Text */}
                       <div style={{
                         fontSize: '14px',
                         lineHeight: '1.4',
@@ -582,7 +577,6 @@ const ChatRoom = () => {
                         {message.message}
                       </div>
                       
-                      {/* Timestamp */}
                       <div style={{
                         fontSize: '11px',
                         opacity: 0.6,
@@ -599,7 +593,6 @@ const ChatRoom = () => {
                 </div>
               ))}
 
-              {/* Typing Indicator */}
               {isTyping && (
                 <div style={{
                   display: 'flex',
@@ -728,7 +721,6 @@ const ChatRoom = () => {
         </div>
       </div>
 
-      {/* CSS Animations */}
       <style jsx>{`
         @keyframes slideIn {
           from {

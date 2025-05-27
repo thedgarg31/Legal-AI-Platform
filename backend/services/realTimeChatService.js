@@ -15,7 +15,7 @@ class RealTimeChatService {
 
     this.connectedUsers = new Map();
     this.chatRooms = new Map();
-    this.recentMessages = new Set(); // For duplicate prevention
+    this.recentMessages = new Set();
     this.setupSocketHandlers();
   }
 
@@ -23,7 +23,6 @@ class RealTimeChatService {
     this.io.on('connection', (socket) => {
       console.log('🔌 User connected:', socket.id);
 
-      // Handle user joining
       socket.on('user_join', (data) => {
         console.log('🔍 Socket event received: user_join', [data]);
         
@@ -34,24 +33,20 @@ class RealTimeChatService {
         }
       });
 
-      // Handle joining chat rooms
       socket.on('join_chat', (data) => {
         console.log('💬 Join chat request:', data);
         this.handleJoinChat(socket, data);
       });
 
-      // Handle sending messages
       socket.on('send_message', (messageData) => {
         console.log('📤 Message received from client:', messageData);
         this.handleSendMessage(socket, messageData);
       });
 
-      // Handle typing indicators
       socket.on('typing', (data) => {
         this.handleTyping(socket, data);
       });
 
-      // Handle disconnection
       socket.on('disconnect', (reason) => {
         console.log('🔌 User disconnected:', socket.id, 'Reason:', reason);
         this.handleUserDisconnect(socket);
@@ -61,28 +56,26 @@ class RealTimeChatService {
 
   async handleUserJoin(socket, data) {
     try {
-      const { userId, userType } = data;
+      const { userId, userType, userName } = data;
       
-      // Store user info
       socket.userId = userId;
       socket.userType = userType;
+      socket.userName = userName || 'Unknown User';
       
-      // Add to connected users
       this.connectedUsers.set(socket.id, {
         userId,
         userType,
+        userName: userName || 'Unknown User',
         socketId: socket.id,
         joinedAt: new Date()
       });
 
-      console.log(`👤 ${userType} ${userId} joined`);
+      console.log(`👤 ${userType} ${userName || userId} joined`);
 
-      // Update lawyer online status if it's a lawyer
       if (userType === 'lawyer') {
         await this.updateLawyerOnlineStatus(userId, true);
       }
 
-      // Join user to their own room for private messages
       socket.join(`user_${userId}`);
 
     } catch (error) {
@@ -99,11 +92,9 @@ class RealTimeChatService {
         return;
       }
 
-      // Join the chat room
       socket.join(chatRoomId);
-      console.log(`💬 User ${socket.userId} joined chat room: ${chatRoomId}`);
+      console.log(`💬 User ${socket.userId} (${socket.userName}) joined chat room: ${chatRoomId}`);
 
-      // Store chat room info
       if (!this.chatRooms.has(chatRoomId)) {
         this.chatRooms.set(chatRoomId, {
           lawyerId,
@@ -114,28 +105,26 @@ class RealTimeChatService {
         });
       }
 
-      // Add participant to chat room
       const chatRoom = this.chatRooms.get(chatRoomId);
       chatRoom.participants.add(socket.userId);
 
-      // Notify other participants
       socket.to(chatRoomId).emit('user_joined_chat', {
         userId: socket.userId,
         userType: socket.userType,
+        userName: socket.userName,
         chatRoomId
       });
 
-      // Send chat history to the joining user
       socket.emit('chat_history', {
         chatRoomId,
         messages: chatRoom.messages || []
       });
 
-      // Notify lawyer about new chat room if they're not already aware
       if (socket.userType === 'client') {
         this.io.to(`user_${lawyerId}`).emit('new_chat_room', {
           chatRoomId,
           clientId,
+          clientName: socket.userName,
           timestamp: new Date()
         });
       }
@@ -147,50 +136,44 @@ class RealTimeChatService {
 
   handleSendMessage(socket, messageData) {
     try {
-      const { chatRoomId, message, messageId } = messageData;
+      const { chatRoomId, message, messageId, senderName } = messageData;
 
       if (!chatRoomId || !message || !messageId) {
         console.log('❌ Invalid message data:', messageData);
         return;
       }
 
-      // ✅ DUPLICATE PREVENTION
       if (this.recentMessages.has(messageId)) {
         console.log('⚠️ Duplicate message prevented on server:', messageId);
         return;
       }
 
-      // Add to recent messages (keep only last 100)
       this.recentMessages.add(messageId);
       if (this.recentMessages.size > 100) {
         const firstItem = this.recentMessages.values().next().value;
         this.recentMessages.delete(firstItem);
       }
 
-      // Add sender info
       const enrichedMessage = {
         ...messageData,
         socketId: socket.id,
+        senderName: senderName || socket.userName || 'Unknown User',
         timestamp: new Date()
       };
 
-      // Store message in chat room
       if (this.chatRooms.has(chatRoomId)) {
         const chatRoom = this.chatRooms.get(chatRoomId);
         chatRoom.messages.push(enrichedMessage);
         
-        // Keep only last 50 messages in memory
         if (chatRoom.messages.length > 50) {
           chatRoom.messages = chatRoom.messages.slice(-50);
         }
       }
 
-      console.log('📨 Broadcasting message to room:', chatRoomId);
+      console.log(`📨 Broadcasting message from ${enrichedMessage.senderName} to room:`, chatRoomId);
 
-      // Broadcast message to all users in the chat room
       this.io.to(chatRoomId).emit('receive_message', enrichedMessage);
 
-      // Also send to lawyer's personal room if client is sending
       if (socket.userType === 'client' && this.chatRooms.has(chatRoomId)) {
         const chatRoom = this.chatRooms.get(chatRoomId);
         this.io.to(`user_${chatRoom.lawyerId}`).emit('receive_message', enrichedMessage);
@@ -207,9 +190,9 @@ class RealTimeChatService {
       
       if (!chatRoomId) return;
 
-      // Broadcast typing status to other users in the chat room
       socket.to(chatRoomId).emit('user_typing', {
         userId,
+        userName: socket.userName,
         isTyping,
         userType: socket.userType
       });
@@ -224,17 +207,15 @@ class RealTimeChatService {
       const userInfo = this.connectedUsers.get(socket.id);
       
       if (userInfo) {
-        const { userId, userType } = userInfo;
+        const { userId, userType, userName } = userInfo;
         
-        // Update lawyer offline status if it's a lawyer
         if (userType === 'lawyer') {
           await this.updateLawyerOnlineStatus(userId, false);
         }
 
-        // Remove from connected users
         this.connectedUsers.delete(socket.id);
         
-        console.log(`👤 ${userType} ${userId} disconnected`);
+        console.log(`👤 ${userType} ${userName || userId} disconnected`);
       }
 
     } catch (error) {
@@ -257,7 +238,6 @@ class RealTimeChatService {
     }
   }
 
-  // Utility methods
   getOnlineUsersCount() {
     return this.connectedUsers.size;
   }
@@ -275,15 +255,13 @@ class RealTimeChatService {
     return room ? Array.from(room) : [];
   }
 
-  // Clean up old messages periodically
   startMessageCleanup() {
     setInterval(() => {
-      // Clear old recent messages (older than 5 minutes)
       if (this.recentMessages.size > 50) {
         this.recentMessages.clear();
         console.log('🧹 Cleaned up recent messages cache');
       }
-    }, 5 * 60 * 1000); // Every 5 minutes
+    }, 5 * 60 * 1000);
   }
 }
 

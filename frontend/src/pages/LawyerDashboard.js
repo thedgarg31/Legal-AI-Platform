@@ -17,6 +17,7 @@ const LawyerDashboard = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [documents, setDocuments] = useState([]);
+  const [clientNames, setClientNames] = useState({}); // Store client names
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -45,7 +46,11 @@ const LawyerDashboard = () => {
           console.log('✅ Lawyer socket connected:', socketInstance.id);
           if (mounted) {
             setIsConnected(true);
-            socketInstance.emit('user_join', { userId: lawyerId, userType: 'lawyer' });
+            socketInstance.emit('user_join', { 
+              userId: lawyerId, 
+              userType: 'lawyer',
+              userName: lawyerResult.lawyer?.personalInfo?.fullName || 'Lawyer'
+            });
             console.log('👨‍💼 Joined as lawyer:', lawyerId);
           }
         });
@@ -60,7 +65,6 @@ const LawyerDashboard = () => {
           if (mounted) setIsConnected(false);
         });
 
-        // ✅ Remove existing listeners before adding new ones
         socketInstance.off('receive_message');
         socketInstance.on('receive_message', (messageData) => {
           console.log('📥 LAWYER: Received message globally:', messageData);
@@ -69,6 +73,14 @@ const LawyerDashboard = () => {
           
           if (chatRoomId && chatRoomId.includes(lawyerId) && mounted) {
             console.log('✅ Message is for this lawyer, processing...');
+            
+            // Store client name if available
+            if (messageData.senderName && messageData.senderType === 'client') {
+              setClientNames(prev => ({
+                ...prev,
+                [chatRoomId]: messageData.senderName
+              }));
+            }
             
             setActiveChats(prevChats => {
               if (!prevChats.includes(chatRoomId)) {
@@ -96,7 +108,6 @@ const LawyerDashboard = () => {
               return [...prevMessages, messageData];
             });
 
-            // If it's a document notification, refresh documents
             if (messageData.isDocumentNotification) {
               fetchDocuments(chatRoomId);
             }
@@ -128,7 +139,17 @@ const LawyerDashboard = () => {
         socketInstance.off('chat_history');
         socketInstance.on('chat_history', (data) => {
           console.log('📜 Lawyer loading chat history:', data.messages);
-          if (mounted) setMessages(data.messages || []);
+          if (mounted) {
+            setMessages(data.messages || []);
+            // Extract client names from chat history
+            const names = {};
+            data.messages?.forEach(msg => {
+              if (msg.senderName && msg.senderType === 'client') {
+                names[msg.chatRoomId] = msg.senderName;
+              }
+            });
+            setClientNames(prev => ({ ...prev, ...names }));
+          }
         });
 
         socketInstance.off('user_typing');
@@ -149,7 +170,6 @@ const LawyerDashboard = () => {
 
     initializeLawyerDashboard();
 
-    // ✅ CLEANUP: Remove all listeners and disconnect socket
     return () => {
       mounted = false;
       if (socketInstance) {
@@ -167,7 +187,6 @@ const LawyerDashboard = () => {
     };
   }, [lawyerId]);
 
-  // Auto-join chat room when selectedChatRoom changes
   useEffect(() => {
     if (selectedChatRoom && socket && isConnected) {
       const clientId = selectedChatRoom.split('_')[2];
@@ -176,7 +195,6 @@ const LawyerDashboard = () => {
     }
   }, [selectedChatRoom, socket, isConnected, lawyerId]);
 
-  // Fetch documents when chat room changes
   useEffect(() => {
     if (selectedChatRoom) {
       fetchDocuments(selectedChatRoom);
@@ -216,26 +234,24 @@ const LawyerDashboard = () => {
         message: currentMessage,
         senderId: lawyerId,
         senderType: 'lawyer',
+        senderName: lawyer?.personalInfo?.fullName || 'Lawyer',
         messageId: `${Date.now()}_${lawyerId}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date()
       };
       
       console.log('📤 Lawyer sending message:', messageData);
       
-      // Clear input immediately
       setCurrentMessage('');
       
-      // Add message to UI immediately (optimistic update)
       setMessages(prevMessages => {
         const exists = prevMessages.some(msg => msg.messageId === messageData.messageId);
         if (exists) return prevMessages;
         return [...prevMessages, messageData];
       });
       
-      // Send to server
       socket.emit('send_message', messageData);
     }
-  }, [currentMessage, socket, selectedChatRoom, isConnected, lawyerId]);
+  }, [currentMessage, socket, selectedChatRoom, isConnected, lawyerId, lawyer]);
 
   const handleTyping = useCallback((typing) => {
     if (socket && selectedChatRoom && isConnected) {
@@ -253,6 +269,23 @@ const LawyerDashboard = () => {
   };
 
   const formatChatRoomName = (chatRoomId) => {
+    // Check if we have the client name stored
+    if (clientNames[chatRoomId]) {
+      return clientNames[chatRoomId];
+    }
+    
+    // Try to get client name from recent messages
+    const recentMessage = messages.find(msg => 
+      msg.chatRoomId === chatRoomId && 
+      msg.senderType === 'client' && 
+      msg.senderName
+    );
+    
+    if (recentMessage && recentMessage.senderName) {
+      return recentMessage.senderName;
+    }
+    
+    // Fallback to client ID
     const clientId = getClientIdFromRoom(chatRoomId);
     return `Client: ${clientId}`;
   };
@@ -317,7 +350,6 @@ const LawyerDashboard = () => {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Connection Status */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -342,7 +374,6 @@ const LawyerDashboard = () => {
             </span>
           </div>
 
-          {/* Active Chats Badge */}
           {activeChats.length > 0 && (
             <div style={{
               background: theme.accent,
@@ -367,7 +398,6 @@ const LawyerDashboard = () => {
           display: 'flex',
           flexDirection: 'column'
         }}>
-          {/* Sidebar Header */}
           <div style={{
             padding: '20px',
             borderBottom: `1px solid ${theme.border}`
@@ -389,7 +419,6 @@ const LawyerDashboard = () => {
             </p>
           </div>
 
-          {/* Chat List */}
           <div style={{ flex: 1, overflow: 'auto' }}>
             {activeChats.length > 0 ? (
               <div style={{ padding: '8px' }}>
@@ -490,7 +519,6 @@ const LawyerDashboard = () => {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {selectedChatRoom ? (
             <>
-              {/* Chat Header */}
               <div style={{
                 padding: '16px 24px',
                 borderBottom: `1px solid ${theme.border}`,
@@ -546,7 +574,6 @@ const LawyerDashboard = () => {
                 </div>
               </div>
 
-              {/* Documents Tab */}
               <div style={{
                 padding: '1rem 24px',
                 borderBottom: `1px solid ${theme.border}`,
@@ -583,7 +610,6 @@ const LawyerDashboard = () => {
                 )}
               </div>
 
-              {/* Messages Area */}
               <div style={{
                 flex: 1,
                 overflow: 'auto',
@@ -629,7 +655,6 @@ const LawyerDashboard = () => {
                           alignItems: 'flex-end',
                           gap: '8px'
                         }}>
-                          {/* Avatar */}
                           <div style={{
                             width: '32px',
                             height: '32px',
@@ -646,7 +671,6 @@ const LawyerDashboard = () => {
                             {message.senderType === 'lawyer' ? '⚖️' : '👤'}
                           </div>
 
-                          {/* Message Bubble */}
                           <div style={{
                             background: message.isDocumentNotification 
                               ? `${theme.accent}20` 
@@ -664,17 +688,15 @@ const LawyerDashboard = () => {
                             position: 'relative',
                             border: message.isDocumentNotification ? `1px solid ${theme.accent}50` : 'none'
                           }}>
-                            {/* Sender Name */}
                             <div style={{
                               fontSize: '12px',
                               fontWeight: '600',
                               marginBottom: '4px',
                               opacity: 0.8
                             }}>
-                              {message.senderType === 'lawyer' ? 'You' : 'Client'}
+                              {message.senderName || (message.senderType === 'lawyer' ? 'You' : 'Client')}
                             </div>
                             
-                            {/* Message Text */}
                             <div style={{
                               fontSize: '14px',
                               lineHeight: '1.4',
@@ -683,7 +705,6 @@ const LawyerDashboard = () => {
                               {message.message}
                             </div>
                             
-                            {/* Timestamp */}
                             <div style={{
                               fontSize: '11px',
                               opacity: 0.6,
@@ -700,7 +721,6 @@ const LawyerDashboard = () => {
                       </div>
                     ))}
 
-                    {/* Typing Indicator */}
                     {isTyping && (
                       <div style={{
                         display: 'flex',
@@ -738,7 +758,6 @@ const LawyerDashboard = () => {
                 )}
               </div>
 
-              {/* Message Input */}
               <div style={{
                 padding: '20px 24px',
                 borderTop: `1px solid ${theme.border}`,
@@ -868,7 +887,6 @@ const LawyerDashboard = () => {
         </div>
       </div>
 
-      {/* CSS Animations */}
       <style jsx>{`
         @keyframes slideIn {
           from {
