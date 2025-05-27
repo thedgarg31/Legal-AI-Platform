@@ -1,80 +1,59 @@
 const mongoose = require('mongoose');
 
-const lawyerSchema = new mongoose.Schema({
-    user: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
+const LawyerSchema = new mongoose.Schema({
+  personalInfo: {
+    fullName: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    phone: { type: String, required: true },
+    profilePhoto: String,
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      country: String,
+      zipCode: String
+    }
+  },
+  credentials: {
+    advocateCode: { type: String, required: true, unique: true },
+    stateBarCouncil: String,
+    enrollmentDate: Date,
+    lawDegree: {
+      university: String,
+      year: Number,
+      certificate: String
     },
-    fullName: {
-        type: String,
-        required: [true, 'Full name is required'],
-    },
-    specialization: {
-        type: String,
-        required: [true, 'Specialization is required'],
-    },
-    experience: {
-        type: Number,
-        required: [true, 'Years of experience is required'],
-    },
-    location: {
-        address: String,
-        city: String,
-        state: String,
-        country: String,
-        coordinates: {
-            type: {
-                type: String,
-                enum: ['Point'],
-                default: 'Point',
-            },
-            coordinates: {
-                type: [Number], // [longitude, latitude]
-                required: true,
-            },
-        },
-    },
-    contact: {
-        phone: String,
-        email: String,
-        website: String,
-    },
-    availability: {
-        days: [String],
-        hours: String,
-    },
-    languages: [String],
-    education: [{
-        degree: String,
-        institution: String,
-        year: Number,
-    }],
-    barMembership: {
-        barCouncil: String,
-        registrationNumber: String,
-        registrationYear: Number,
-    },
-    rating: {
-        type: Number,
-        default: 0,
-        min: 0,
-        max: 5,
-    },
+    specializations: [String],
+    experience: Number,
+    courtsPracticing: [String]
+  },
+  verification: {
+    status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
+    verifiedBy: String,
+    verificationDate: Date,
+    documents: {
+      enrollmentCertificate: String,
+      degreeProof: String,
+      identityProof: String,
+      addressProof: String
+    }
+  },
+  availability: {
+    isOnline: { type: Boolean, default: false },
+    consultationFees: Number,
+    availableHours: Object,
+    languages: [String]
+  },
+  ratings: {
+    averageRating: { type: Number, default: 0 },
+    totalReviews: { type: Number, default: 0 },
     reviews: [{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Review',
-    }],
-    profileImage: String,
-    bio: String,
-    isVerified: {
-        type: Boolean,
-        default: false,
-    },
-});
+      userId: mongoose.Schema.Types.ObjectId,
+      rating: Number,
+      comment: String,
+      date: Date
+    }]
+  }
+}, { timestamps: true });
 
-// Index for geospatial queries
-lawyerSchema.index({ 'location.coordinates': '2dsphere' });
-
-const Lawyer = mongoose.model('Lawyer', lawyerSchema);
-module.exports = Lawyer;
+module.exports = mongoose.model('Lawyer', LawyerSchema);

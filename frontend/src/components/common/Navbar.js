@@ -19,6 +19,9 @@ const Navbar = () => {
           <Link to="/chat" className="navbar-link">
             💬 Chat with PDF
           </Link>
+          <Link to="/lawyers" className="navbar-link">
+            👨‍💼 Find Lawyers
+          </Link>
           <Link to="/login" className="navbar-link">
             👤 Login
           </Link>
