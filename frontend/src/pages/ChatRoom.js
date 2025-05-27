@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { getLawyerById } from '../api/lawyers';
 import { createChatRoom } from '../api/realTimeChat';
@@ -11,7 +11,8 @@ import DocumentAnalysis from '../components/DocumentAnalysis';
 const ChatRoom = () => {
   const { lawyerId } = useParams();
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [socket, setSocket] = useState(null);
   const [lawyer, setLawyer] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -22,13 +23,49 @@ const ChatRoom = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [documents, setDocuments] = useState([]);
   const [showDocumentUpload, setShowDocumentUpload] = useState(false);
+  const [error, setError] = useState('');
   const messagesEndRef = useRef(null);
 
-  // ✅ USE AUTHENTICATED USER ID AND NAME
-  const clientId = user?.id || 'anonymous';
-  const clientName = user?.name || 'Anonymous User';
+  // Debug logging
+  console.log('🔍 ChatRoom - lawyerId from URL:', lawyerId);
+  console.log('🔍 ChatRoom - user:', user);
+  console.log('🔍 ChatRoom - isAuthenticated:', isAuthenticated);
+
+  // Validate lawyer ID
+  useEffect(() => {
+    if (!lawyerId || lawyerId === 'undefined') {
+      console.error('❌ Invalid lawyer ID:', lawyerId);
+      setError('Invalid lawyer ID provided');
+      setLoading(false);
+      return;
+    }
+
+    if (!isAuthenticated) {
+      console.log('❌ User not authenticated, redirecting to login');
+      navigate('/auth', { 
+        state: { 
+          from: { pathname: `/chat/${lawyerId}` },
+          message: 'Please log in to start a consultation' 
+        } 
+      });
+      return;
+    }
+
+    if (!user) {
+      console.log('❌ No user data available');
+      setError('User data not available');
+      setLoading(false);
+      return;
+    }
+
+    console.log('✅ ChatRoom validation passed, initializing...');
+  }, [lawyerId, isAuthenticated, user, navigate]);
 
   useEffect(() => {
+    if (!lawyerId || lawyerId === 'undefined' || !isAuthenticated || !user) {
+      return;
+    }
+
     let mounted = true;
     let socketInstance = null;
 
@@ -41,7 +78,15 @@ const ChatRoom = () => {
         if (lawyerResult.success && mounted) {
           setLawyer(lawyerResult.lawyer);
           console.log('✅ Lawyer details loaded:', lawyerResult.lawyer.personalInfo.fullName);
+        } else {
+          console.error('❌ Failed to load lawyer:', lawyerResult);
+          setError('Failed to load lawyer information');
+          setLoading(false);
+          return;
         }
+
+        const clientId = user.id;
+        const clientName = user.name;
 
         const chatResult = await createChatRoom({ lawyerId, clientId });
         if (chatResult.success && mounted) {
@@ -49,7 +94,7 @@ const ChatRoom = () => {
           setChatRoomId(roomId);
           console.log('✅ Chat room created/found:', roomId);
 
-          // Create socket connection only once
+          // Create socket connection
           socketInstance = io('http://localhost:5000', {
             forceNew: true,
             transports: ['websocket', 'polling']
@@ -111,9 +156,13 @@ const ChatRoom = () => {
           socketInstance.on('user_joined_chat', (data) => {
             console.log('👋 User joined chat:', data);
           });
+        } else {
+          console.error('❌ Failed to create chat room:', chatResult);
+          setError('Failed to create chat room');
         }
       } catch (error) {
         console.error('❌ Error initializing chat:', error);
+        setError('Failed to initialize chat');
       } finally {
         if (mounted) setLoading(false);
       }
@@ -135,21 +184,21 @@ const ChatRoom = () => {
         console.log('🧹 Socket cleaned up and disconnected');
       }
     };
-  }, [lawyerId, user]);
+  }, [lawyerId, user, isAuthenticated]);
 
   const handleDocumentUpload = (document) => {
     console.log('📄 Document uploaded:', document);
     setDocuments(prev => [document, ...prev]);
     setShowDocumentUpload(false);
     
-    if (socket && chatRoomId) {
+    if (socket && chatRoomId && user) {
       const notificationMessage = {
         chatRoomId,
         message: `📄 Document uploaded: ${document.originalName}`,
-        senderId: clientId,
+        senderId: user.id,
         senderType: 'client',
-        senderName: clientName,
-        messageId: `${Date.now()}_${clientId}_doc_${Math.random().toString(36).substr(2, 9)}`,
+        senderName: user.name,
+        messageId: `${Date.now()}_${user.id}_doc_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date(),
         isDocumentNotification: true,
         documentId: document.id
@@ -161,14 +210,14 @@ const ChatRoom = () => {
   };
 
   const sendMessage = useCallback(() => {
-    if (currentMessage.trim() && socket && chatRoomId && isConnected) {
+    if (currentMessage.trim() && socket && chatRoomId && isConnected && user) {
       const messageData = {
         chatRoomId,
         message: currentMessage,
-        senderId: clientId,
+        senderId: user.id,
         senderType: 'client',
-        senderName: clientName,
-        messageId: `${Date.now()}_${clientId}_${Math.random().toString(36).substr(2, 9)}`,
+        senderName: user.name,
+        messageId: `${Date.now()}_${user.id}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date()
       };
       
@@ -184,17 +233,17 @@ const ChatRoom = () => {
       
       socket.emit('send_message', messageData);
     }
-  }, [currentMessage, socket, chatRoomId, isConnected, clientId, clientName]);
+  }, [currentMessage, socket, chatRoomId, isConnected, user]);
 
   const handleTyping = useCallback((typing) => {
-    if (socket && chatRoomId) {
+    if (socket && chatRoomId && user) {
       socket.emit('typing', {
         chatRoomId,
-        userId: clientId,
+        userId: user.id,
         isTyping: typing
       });
     }
-  }, [socket, chatRoomId, clientId]);
+  }, [socket, chatRoomId, user]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -208,11 +257,11 @@ const ChatRoom = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
+        fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
       }}>
         <div style={{ 
           textAlign: 'center',
-          background: theme.secondary,
+          background: theme.card,
           padding: '3rem',
           borderRadius: '12px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
@@ -235,11 +284,50 @@ const ChatRoom = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div style={{ 
+        background: theme.primary,
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
+      }}>
+        <div style={{ 
+          textAlign: 'center',
+          background: theme.card,
+          padding: '3rem',
+          borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          border: `1px solid ${theme.danger}`
+        }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>❌</div>
+          <h2 style={{ color: theme.danger, margin: '0 0 1rem 0' }}>Error</h2>
+          <p style={{ color: theme.text, margin: '0 0 2rem 0' }}>{error}</p>
+          <Link 
+            to="/lawyers" 
+            style={{
+              background: theme.accent,
+              color: 'white',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: '600'
+            }}
+          >
+            Back to Lawyers
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ 
       background: theme.primary,
       minHeight: '100vh',
-      fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif',
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
       color: theme.text
     }}>
       {/* Top Navigation Bar */}
@@ -253,7 +341,7 @@ const ChatRoom = () => {
         justifyContent: 'space-between',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         position: 'sticky',
-        top: 0,
+        top: 64,
         zIndex: 100
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -285,7 +373,7 @@ const ChatRoom = () => {
             fontWeight: '600',
             fontSize: '16px'
           }}>
-            ⚖️
+            L
           </div>
           <div>
             <h1 style={{ 
@@ -294,14 +382,14 @@ const ChatRoom = () => {
               fontWeight: '600',
               color: theme.text
             }}>
-              LegalChat Pro
+              LegalPro Chat
             </h1>
             <p style={{ 
               margin: 0, 
               fontSize: '14px', 
               color: theme.textSecondary
             }}>
-              Client Portal - {clientName}
+              Client Portal - {user?.name}
             </p>
           </div>
         </div>
@@ -337,76 +425,78 @@ const ChatRoom = () => {
       <div style={{ 
         maxWidth: '1000px', 
         margin: '0 auto',
-        height: 'calc(100vh - 60px)',
+        height: 'calc(100vh - 124px)',
         display: 'flex',
         flexDirection: 'column'
       }}>
         {/* Chat Header */}
-        <div style={{
-          padding: '20px 24px',
-          borderBottom: `1px solid ${theme.border}`,
-          background: theme.secondary
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{
-              width: '60px',
-              height: '60px',
-              borderRadius: '50%',
-              background: lawyer?.personalInfo.profilePhoto 
-                ? `url(http://localhost:5000/uploads/lawyer-documents/${lawyer.personalInfo.profilePhoto})` 
-                : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'white',
-              fontSize: '24px',
-              fontWeight: 'bold',
-              border: `3px solid ${theme.border}`
-            }}>
-              {!lawyer?.personalInfo.profilePhoto && lawyer?.personalInfo.fullName?.charAt(0)}
-            </div>
-            <div style={{ flex: 1 }}>
-              <h2 style={{ 
-                color: theme.text, 
-                margin: 0, 
-                fontSize: '20px', 
-                fontWeight: '600',
-                marginBottom: '4px'
+        {lawyer && (
+          <div style={{
+            padding: '20px 24px',
+            borderBottom: `1px solid ${theme.border}`,
+            background: theme.secondary
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '60px',
+                height: '60px',
+                borderRadius: '50%',
+                background: lawyer.personalInfo.profilePhoto 
+                  ? `url(http://localhost:5000/uploads/lawyer-documents/${lawyer.personalInfo.profilePhoto})` 
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '24px',
+                fontWeight: 'bold',
+                border: `3px solid ${theme.border}`
               }}>
-                {lawyer?.personalInfo.fullName}
-              </h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span style={{ 
-                  color: theme.textSecondary, 
-                  fontSize: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
+                {!lawyer.personalInfo.profilePhoto && lawyer.personalInfo.fullName?.charAt(0)}
+              </div>
+              <div style={{ flex: 1 }}>
+                <h2 style={{ 
+                  color: theme.text, 
+                  margin: 0, 
+                  fontSize: '20px', 
+                  fontWeight: '600',
+                  marginBottom: '4px'
                 }}>
-                  {lawyer?.availability.isOnline ? (
-                    <>🟢 Online</>
-                  ) : (
-                    <>⚫ Offline</>
-                  )}
-                </span>
-                <span style={{ color: theme.textSecondary, fontSize: '14px' }}>•</span>
-                <span style={{ color: theme.textSecondary, fontSize: '14px' }}>
-                  {lawyer?.credentials.specializations?.[0]}
-                </span>
-                <span style={{ color: theme.textSecondary, fontSize: '14px' }}>•</span>
-                <span style={{ 
-                  color: theme.accent, 
-                  fontSize: '14px',
-                  fontWeight: '600'
-                }}>
-                  ₹{lawyer?.availability.consultationFees}/consultation
-                </span>
+                  {lawyer.personalInfo.fullName}
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                  <span style={{ 
+                    color: theme.textSecondary, 
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    {lawyer.availability?.isOnline ? (
+                      <>🟢 Online</>
+                    ) : (
+                      <>⚫ Offline</>
+                    )}
+                  </span>
+                  <span style={{ color: theme.textSecondary, fontSize: '14px' }}>•</span>
+                  <span style={{ color: theme.textSecondary, fontSize: '14px' }}>
+                    {lawyer.credentials?.specializations?.[0]}
+                  </span>
+                  <span style={{ color: theme.textSecondary, fontSize: '14px' }}>•</span>
+                  <span style={{ 
+                    color: theme.accent, 
+                    fontSize: '14px',
+                    fontWeight: '600'
+                  }}>
+                    ₹{lawyer.availability?.consultationFees?.toLocaleString()}/consultation
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Document Upload Section */}
         <div style={{
@@ -461,7 +551,7 @@ const ChatRoom = () => {
             }}>
               <DocumentUpload
                 onUploadSuccess={handleDocumentUpload}
-                uploadedBy={clientId}
+                uploadedBy={user?.id}
                 userType="client"
                 lawyerId={lawyerId}
                 chatRoomId={chatRoomId}
@@ -540,7 +630,7 @@ const ChatRoom = () => {
                       fontWeight: '600',
                       flexShrink: 0
                     }}>
-                      {message.senderType === 'client' ? '👤' : '⚖️'}
+                      {message.senderType === 'client' ? 'C' : 'L'}
                     </div>
 
                     <div style={{
@@ -566,7 +656,7 @@ const ChatRoom = () => {
                         marginBottom: '4px',
                         opacity: 0.8
                       }}>
-                        {message.senderName || (message.senderType === 'client' ? clientName : lawyer?.personalInfo.fullName)}
+                        {message.senderName || (message.senderType === 'client' ? user?.name : lawyer?.personalInfo.fullName)}
                       </div>
                       
                       <div style={{
@@ -611,7 +701,7 @@ const ChatRoom = () => {
                     justifyContent: 'center',
                     fontSize: '14px'
                   }}>
-                    ⚖️
+                    L
                   </div>
                   <div style={{
                     background: theme.messageOther,

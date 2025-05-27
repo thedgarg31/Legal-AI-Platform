@@ -1,336 +1,375 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
-import { getAllLawyers } from '../api/lawyers';
 
 const FindLawyers = () => {
   const { theme } = useTheme();
-  const [lawyers, setLawyers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedSpecialization, setSelectedSpecialization] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    fetchLawyers();
-  }, []);
-
-  const fetchLawyers = async () => {
-    try {
-      const result = await getAllLawyers();
-      if (result.success) {
-        setLawyers(result.lawyers);
+  // Updated lawyers using original names with new credentials
+  const demoLawyers = [
+    {
+      _id: '68343b007976480a55bce7f5', // Dr. Rajesh Kumar's ID
+      personalInfo: {
+        fullName: 'Dr. Rajesh Kumar', // Original name from database
+        email: 'lawyer1@legalpro.com', // New login email
+        phone: '+91-9876543210',
+        profilePhoto: null
+      },
+      credentials: {
+        specializations: ['Corporate Law', 'Contract Law', 'Business Law'],
+        experience: 8,
+        advocateCode: 'ADV001'
+      },
+      availability: {
+        consultationFees: 3000,
+        isOnline: true
+      },
+      isDemo: true,
+      loginCredentials: {
+        email: 'lawyer1@legalpro.com',
+        password: 'lawyer123'
       }
-    } catch (error) {
-      console.error('Error fetching lawyers:', error);
-    } finally {
-      setLoading(false);
+    },
+    {
+      _id: '68343b007976480a55bce7f6', // Advocate Priya Sharma's ID
+      personalInfo: {
+        fullName: 'Advocate Priya Sharma', // Original name from database
+        email: 'lawyer2@legalpro.com', // New login email
+        phone: '+91-9876543211',
+        profilePhoto: null
+      },
+      credentials: {
+        specializations: ['Criminal Law', 'Civil Rights', 'Family Law'],
+        experience: 12,
+        advocateCode: 'ADV002'
+      },
+      availability: {
+        consultationFees: 4500,
+        isOnline: true
+      },
+      isDemo: true,
+      loginCredentials: {
+        email: 'lawyer2@legalpro.com',
+        password: 'lawyer456'
+      }
     }
-  };
-
-  const filteredLawyers = lawyers.filter(lawyer => {
-    const matchesSearch = lawyer.personalInfo.fullName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSpecialization = selectedSpecialization === '' || 
-      lawyer.credentials.specializations.includes(selectedSpecialization);
-    return matchesSearch && matchesSpecialization;
-  });
-
-  const specializations = [...new Set(lawyers.flatMap(lawyer => lawyer.credentials.specializations))];
-
-  if (loading) {
-    return (
-      <div style={{
-        background: theme.primary,
-        minHeight: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
-      }}>
-        <div style={{
-          textAlign: 'center',
-          background: theme.secondary,
-          padding: '3rem',
-          borderRadius: '12px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          border: `1px solid ${theme.border}`
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: `4px solid ${theme.border}`,
-            borderTop: `4px solid ${theme.accent}`,
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto 1rem auto'
-          }}></div>
-          <p style={{ color: theme.text, fontSize: '1.1rem', fontWeight: '500', margin: 0 }}>
-            Loading lawyers...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  ];
 
   return (
     <div style={{
       background: theme.primary,
       minHeight: '100vh',
-      fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif',
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
       color: theme.text
     }}>
-      {/* Header Section */}
-      <div style={{
-        background: theme.secondary,
-        borderBottom: `1px solid ${theme.border}`,
-        padding: '3rem 0'
+      {/* Hero Section */}
+      <section style={{
+        background: `linear-gradient(135deg, ${theme.accent} 0%, #764ba2 100%)`,
+        padding: '80px 0',
+        textAlign: 'center',
+        color: 'white'
       }}>
         <div style={{
           maxWidth: '1200px',
           margin: '0 auto',
-          padding: '0 2rem',
-          textAlign: 'center'
+          padding: '0 2rem'
         }}>
           <h1 style={{
-            fontSize: '2.5rem',
+            fontSize: '3rem',
             fontWeight: '700',
             marginBottom: '1rem',
-            color: theme.text
+            margin: 0
           }}>
             Find Expert Lawyers
           </h1>
           <p style={{
-            fontSize: '1.1rem',
-            color: theme.textSecondary,
-            marginBottom: '2rem'
+            fontSize: '1.2rem',
+            marginBottom: '2rem',
+            opacity: 0.9,
+            maxWidth: '600px',
+            margin: '1rem auto 0 auto'
           }}>
-            Connect with qualified legal professionals for instant consultation
+            Connect with experienced legal professionals for your consultation needs
           </p>
+        </div>
+      </section>
 
-          {/* Search and Filter */}
+      {/* Lawyers List */}
+      <section style={{
+        padding: '60px 0',
+        background: theme.secondary
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          padding: '0 2rem'
+        }}>
           <div style={{
             display: 'flex',
-            gap: '1rem',
-            maxWidth: '600px',
-            margin: '0 auto',
-            flexWrap: 'wrap'
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: '3rem'
           }}>
-            <input
-              type="text"
-              placeholder="Search lawyers by name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{
-                flex: 1,
-                minWidth: '250px',
-                padding: '12px 16px',
-                border: `1px solid ${theme.border}`,
-                borderRadius: '8px',
-                fontSize: '16px',
-                background: theme.primary,
-                color: theme.text,
-                outline: 'none'
-              }}
-            />
-            <select
-              value={selectedSpecialization}
-              onChange={(e) => setSelectedSpecialization(e.target.value)}
-              style={{
-                padding: '12px 16px',
-                border: `1px solid ${theme.border}`,
-                borderRadius: '8px',
-                fontSize: '16px',
-                background: theme.primary,
-                color: theme.text,
-                outline: 'none',
-                minWidth: '200px'
-              }}
-            >
-              <option value="">All Specializations</option>
-              {specializations.map(spec => (
-                <option key={spec} value={spec}>{spec}</option>
-              ))}
-            </select>
+            <h2 style={{
+              fontSize: '2rem',
+              fontWeight: '600',
+              color: theme.text,
+              margin: 0
+            }}>
+              Available Lawyers
+            </h2>
+            <div style={{
+              background: theme.accent + '20',
+              color: theme.accent,
+              padding: '8px 16px',
+              borderRadius: '20px',
+              fontSize: '14px',
+              fontWeight: '600',
+              border: `1px solid ${theme.accent}50`
+            }}>
+              {demoLawyers.length} Demo Lawyers Available
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Lawyers Grid */}
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '3rem 2rem'
-      }}>
-        {filteredLawyers.length === 0 ? (
-          <div style={{
-            textAlign: 'center',
-            padding: '3rem',
-            background: theme.secondary,
-            borderRadius: '12px',
-            border: `1px solid ${theme.border}`
-          }}>
-            <div style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.5 }}>👨‍💼</div>
-            <h3 style={{ color: theme.text, marginBottom: '0.5rem' }}>No lawyers found</h3>
-            <p style={{ color: theme.textSecondary }}>Try adjusting your search criteria</p>
-          </div>
-        ) : (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-            gap: '2rem'
-          }}>
-            {filteredLawyers.map((lawyer) => (
-              <div
-                key={lawyer._id}
-                style={{
-                  background: theme.card,
-                  border: `1px solid ${theme.border}`,
-                  borderRadius: '16px',
-                  padding: '2rem',
-                  transition: 'all 0.3s ease',
-                  cursor: 'pointer'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = theme.cardHover;
-                  e.currentTarget.style.transform = 'translateY(-5px)';
-                  e.currentTarget.style.boxShadow = '0 10px 30px rgba(0,0,0,0.15)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = theme.card;
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+          {loading ? (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              padding: '4rem'
+            }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                border: `4px solid ${theme.border}`,
+                borderTop: `4px solid ${theme.accent}`,
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }}></div>
+            </div>
+          ) : (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+              gap: '2rem'
+            }}>
+              {demoLawyers.map((lawyer) => (
+                <div
+                  key={lawyer._id}
+                  style={{
+                    background: theme.card,
+                    borderRadius: '16px',
+                    padding: '2rem',
+                    border: `1px solid ${theme.border}`,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                    transition: 'all 0.3s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(0,0,0,0.15)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
+                  }}
+                >
+                  {/* Demo Badge */}
                   <div style={{
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '50%',
-                    background: lawyer.personalInfo.profilePhoto 
-                      ? `url(http://localhost:5000/uploads/lawyer-documents/${lawyer.personalInfo.profilePhoto})`
-                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    position: 'absolute',
+                    top: '1rem',
+                    right: '1rem',
+                    background: '#FF6B35',
                     color: 'white',
-                    fontSize: '24px',
-                    fontWeight: 'bold',
-                    border: `3px solid ${theme.border}`
+                    padding: '4px 12px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: '700',
+                    textTransform: 'uppercase'
                   }}>
-                    {!lawyer.personalInfo.profilePhoto && lawyer.personalInfo.fullName.charAt(0)}
+                    Demo
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{
-                      margin: 0,
-                      fontSize: '1.25rem',
-                      fontWeight: '600',
-                      color: theme.text,
-                      marginBottom: '0.25rem'
-                    }}>
-                      {lawyer.personalInfo.fullName}
-                    </h3>
+
+                  {/* Lawyer Info */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '1rem',
+                    marginBottom: '1.5rem'
+                  }}>
+                    {/* Avatar */}
                     <div style={{
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '50%',
+                      background: lawyer.personalInfo.profilePhoto 
+                        ? `url(http://localhost:5000/uploads/lawyer-documents/${lawyer.personalInfo.profilePhoto})` 
+                        : lawyer.personalInfo.fullName === 'Dr. Rajesh Kumar' 
+                          ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                          : 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px'
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '2rem',
+                      fontWeight: 'bold',
+                      flexShrink: 0,
+                      border: `3px solid ${theme.border}`
                     }}>
-                      <div style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: lawyer.availability.isOnline ? theme.success : theme.textSecondary
-                      }} />
-                      <span style={{
-                        fontSize: '14px',
-                        color: lawyer.availability.isOnline ? theme.success : theme.textSecondary,
-                        fontWeight: '500'
+                      {!lawyer.personalInfo.profilePhoto && lawyer.personalInfo.fullName.charAt(0)}
+                    </div>
+
+                    {/* Basic Info */}
+                    <div style={{ flex: 1 }}>
+                      <h3 style={{
+                        fontSize: '1.3rem',
+                        fontWeight: '600',
+                        color: theme.text,
+                        margin: '0 0 0.5rem 0'
                       }}>
-                        {lawyer.availability.isOnline ? 'Online' : 'Offline'}
-                      </span>
+                        {lawyer.personalInfo.fullName}
+                      </h3>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '0.5rem'
+                      }}>
+                        <div style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          background: lawyer.availability.isOnline ? '#4CAF50' : '#F44336'
+                        }}></div>
+                        <span style={{
+                          fontSize: '0.9rem',
+                          color: lawyer.availability.isOnline ? '#4CAF50' : '#F44336',
+                          fontWeight: '500'
+                        }}>
+                          {lawyer.availability.isOnline ? 'Online' : 'Offline'}
+                        </span>
+                      </div>
+                      <p style={{
+                        fontSize: '0.9rem',
+                        color: theme.textSecondary,
+                        margin: 0
+                      }}>
+                        {lawyer.credentials.experience} years experience
+                      </p>
                     </div>
                   </div>
-                </div>
 
-                <div style={{ marginBottom: '1.5rem' }}>
-                  <div style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    gap: '0.5rem',
-                    marginBottom: '1rem'
-                  }}>
-                    {lawyer.credentials.specializations.map((spec, index) => (
-                      <span
-                        key={index}
-                        style={{
-                          background: `${theme.accent}15`,
-                          color: theme.accent,
-                          padding: '4px 12px',
-                          borderRadius: '16px',
-                          fontSize: '12px',
-                          fontWeight: '500',
-                          border: `1px solid ${theme.accent}30`
-                        }}
-                      >
-                        {spec}
-                      </span>
-                    ))}
+                  {/* Specializations */}
+                  <div style={{ marginBottom: '1.5rem' }}>
+                    <h4 style={{
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      color: theme.text,
+                      marginBottom: '0.5rem'
+                    }}>
+                      Specializations
+                    </h4>
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem'
+                    }}>
+                      {lawyer.credentials.specializations.map((spec, index) => (
+                        <span
+                          key={index}
+                          style={{
+                            background: theme.accent + '20',
+                            color: theme.accent,
+                            padding: '4px 12px',
+                            borderRadius: '12px',
+                            fontSize: '0.8rem',
+                            fontWeight: '500',
+                            border: `1px solid ${theme.accent}30`
+                          }}
+                        >
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  
+
+                  {/* Consultation Fee */}
                   <div style={{
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    fontSize: '14px',
-                    color: theme.textSecondary,
-                    marginBottom: '1rem'
+                    marginBottom: '1.5rem',
+                    padding: '1rem',
+                    background: theme.tertiary,
+                    borderRadius: '8px'
                   }}>
-                    <span>📍 {lawyer.personalInfo.location}</span>
-                    <span>⭐ {lawyer.credentials.experience} years</span>
+                    <span style={{
+                      fontSize: '0.9rem',
+                      color: theme.textSecondary
+                    }}>
+                      Consultation Fee
+                    </span>
+                    <span style={{
+                      fontSize: '1.2rem',
+                      fontWeight: '700',
+                      color: theme.accent
+                    }}>
+                      ₹{lawyer.availability.consultationFees.toLocaleString()}
+                    </span>
                   </div>
 
+                  {/* Action Button */}
+                  <Link
+                    to={`/chat/${lawyer._id}`}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                      color: 'white',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      textDecoration: 'none',
+                      textAlign: 'center',
+                      fontSize: '1rem',
+                      fontWeight: '600',
+                      transition: 'all 0.3s ease'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.transform = 'translateY(-2px)';
+                      e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.transform = 'translateY(0)';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  >
+                    Start Consultation
+                  </Link>
+
+                  {/* Demo Credentials Info */}
                   <div style={{
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    color: theme.accent,
-                    textAlign: 'center',
-                    marginBottom: '1rem'
+                    marginTop: '1rem',
+                    padding: '0.75rem',
+                    background: '#FFF3CD',
+                    border: '1px solid #FFEAA7',
+                    borderRadius: '6px',
+                    fontSize: '0.8rem'
                   }}>
-                    ₹{lawyer.availability.consultationFees}/consultation
+                    <strong style={{ color: '#856404' }}>Demo Login:</strong>
+                    <br />
+                    <span style={{ color: '#856404' }}>
+                      {lawyer.loginCredentials.email} / {lawyer.loginCredentials.password}
+                    </span>
                   </div>
                 </div>
-
-                <Link
-                  to={`/chat/${lawyer._id}`}
-                  style={{
-                    display: 'block',
-                    textDecoration: 'none',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    padding: '12px 24px',
-                    borderRadius: '8px',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    textAlign: 'center',
-                    transition: 'all 0.3s ease',
-                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.transform = 'translateY(-2px)';
-                    e.target.style.boxShadow = '0 6px 16px rgba(102, 126, 234, 0.4)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.transform = 'translateY(0)';
-                    e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.3)';
-                  }}
-                >
-                  Start Consultation
-                </Link>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
 
       <style jsx>{`
         @keyframes spin {

@@ -23,9 +23,51 @@ const userSchema = new mongoose.Schema({
     enum: ['client', 'lawyer'],
     default: 'client'
   },
-  avatar: {
-    type: String,
-    default: null
+  profile: {
+    firstName: {
+      type: String,
+      trim: true
+    },
+    lastName: {
+      type: String,
+      trim: true
+    },
+    phone: {
+      type: String,
+      trim: true
+    },
+    dateOfBirth: {
+      type: Date
+    },
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'other', ''],
+      default: ''
+    },
+    address: {
+      street: String,
+      city: String,
+      state: String,
+      zipCode: String,
+      country: String
+    },
+    bio: {
+      type: String,
+      maxlength: 500
+    },
+    profilePhoto: {
+      type: String,
+      default: null
+    },
+    occupation: {
+      type: String,
+      trim: true
+    },
+    emergencyContact: {
+      name: String,
+      phone: String,
+      relationship: String
+    }
   },
   isOnline: {
     type: Boolean,
@@ -34,6 +76,10 @@ const userSchema = new mongoose.Schema({
   lastSeen: {
     type: Date,
     default: Date.now
+  },
+  profileCompleted: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

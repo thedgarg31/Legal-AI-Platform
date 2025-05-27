@@ -30,7 +30,24 @@ const Auth = () => {
       if (isLogin) {
         const result = await login(formData.email, formData.password);
         if (result.success) {
-          navigate(from, { replace: true });
+          console.log('✅ Login successful:', result.user);
+          
+          // ✅ CHECK FOR STORED REDIRECT PATH
+          const redirectPath = localStorage.getItem('redirectAfterLogin');
+          if (redirectPath) {
+            console.log('🔄 Redirecting to stored path:', redirectPath);
+            localStorage.removeItem('redirectAfterLogin');
+            navigate(redirectPath, { replace: true });
+          } else {
+            // Default redirect based on user type
+            if (result.user.isLawyer && result.user.lawyerId) {
+              console.log('🔄 Redirecting lawyer to dashboard:', result.user.lawyerId);
+              navigate(`/lawyer-dashboard/${result.user.lawyerId}`, { replace: true });
+            } else {
+              console.log('🔄 Redirecting client to:', from);
+              navigate(from, { replace: true });
+            }
+          }
         } else {
           setError(result.message);
         }
@@ -69,7 +86,7 @@ const Auth = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
     }}>
       <div style={{
         background: theme.card,
@@ -94,7 +111,7 @@ const Auth = () => {
             color: 'white',
             fontSize: '24px'
           }}>
-            ⚖️
+            L
           </div>
           <h1 style={{
             fontSize: '1.5rem',
@@ -111,6 +128,26 @@ const Auth = () => {
             {isLogin ? 'Sign in to continue your legal consultations' : 'Join our legal platform'}
           </p>
         </div>
+
+        {/* Demo Credentials Info */}
+        {isLogin && (
+          <div style={{
+            background: '#E3F2FD',
+            border: '1px solid #2196F3',
+            borderRadius: '8px',
+            padding: '1rem',
+            marginBottom: '1.5rem',
+            fontSize: '0.9rem'
+          }}>
+            <strong style={{ color: '#1976D2' }}>Demo Lawyer Credentials:</strong>
+            <br />
+            <span style={{ color: '#1976D2' }}>
+              lawyer1@legalpro.com / lawyer123 (Dr. Rajesh Kumar)
+              <br />
+              lawyer2@legalpro.com / lawyer456 (Advocate Priya Sharma)
+            </span>
+          </div>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit}>

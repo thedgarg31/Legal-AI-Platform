@@ -22,7 +22,6 @@ export const AuthProvider = ({ children }) => {
 
       if (storedToken && storedUser) {
         try {
-          // Verify token is still valid
           const response = await fetch('http://localhost:5000/api/auth/me', {
             headers: {
               'Authorization': `Bearer ${storedToken}`
@@ -34,7 +33,6 @@ export const AuthProvider = ({ children }) => {
             setUser(data.user);
             setToken(storedToken);
           } else {
-            // Token is invalid, clear storage
             localStorage.removeItem('token');
             localStorage.removeItem('user');
           }
@@ -67,6 +65,13 @@ export const AuthProvider = ({ children }) => {
         setToken(data.token);
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // ✅ AUTO-REDIRECT LAWYERS TO THEIR DASHBOARD
+        if (data.user.isLawyer && data.user.lawyerId) {
+          localStorage.setItem('redirectAfterLogin', `/lawyer-dashboard/${data.user.lawyerId}`);
+          console.log('🔄 Lawyer login detected, will redirect to dashboard:', data.user.lawyerId);
+        }
+        
         return { success: true, user: data.user };
       } else {
         return { success: false, message: data.message };
@@ -104,6 +109,39 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const registerLawyer = async (lawyerData) => {
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/register-lawyer', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(lawyerData)
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setUser(data.user);
+        setToken(data.token);
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // Auto-redirect for new lawyer registration
+        if (data.user.isLawyer && data.user.lawyerId) {
+          localStorage.setItem('redirectAfterLogin', `/lawyer-dashboard/${data.user.lawyerId}`);
+        }
+        
+        return { success: true, user: data.user, message: data.message };
+      } else {
+        return { success: false, message: data.message };
+      }
+    } catch (error) {
+      console.error('Lawyer register error:', error);
+      return { success: false, message: 'Network error' };
+    }
+  };
+
   const logout = async () => {
     try {
       if (user) {
@@ -112,7 +150,10 @@ export const AuthProvider = ({ children }) => {
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ userId: user.id })
+          body: JSON.stringify({ 
+            userId: user.id,
+            lawyerId: user.lawyerId 
+          })
         });
       }
     } catch (error) {
@@ -122,6 +163,7 @@ export const AuthProvider = ({ children }) => {
       setToken(null);
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      localStorage.removeItem('redirectAfterLogin');
     }
   };
 
@@ -130,9 +172,11 @@ export const AuthProvider = ({ children }) => {
     token,
     login,
     register,
+    registerLawyer,
     logout,
     loading,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
+    isLawyer: user?.isLawyer || false
   };
 
   return (

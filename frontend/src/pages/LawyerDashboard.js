@@ -3,11 +3,13 @@ import { useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import { getLawyerById } from '../api/lawyers';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 import DocumentAnalysis from '../components/DocumentAnalysis';
 
 const LawyerDashboard = () => {
   const { lawyerId } = useParams();
   const { theme } = useTheme();
+  const { user } = useAuth();
   const [socket, setSocket] = useState(null);
   const [lawyer, setLawyer] = useState(null);
   const [activeChats, setActiveChats] = useState([]);
@@ -17,7 +19,8 @@ const LawyerDashboard = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [documents, setDocuments] = useState([]);
-  const [clientNames, setClientNames] = useState({}); // Store client names
+  const [clientNames, setClientNames] = useState({});
+  const [loading, setLoading] = useState(true);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -49,7 +52,7 @@ const LawyerDashboard = () => {
             socketInstance.emit('user_join', { 
               userId: lawyerId, 
               userType: 'lawyer',
-              userName: lawyerResult.lawyer?.personalInfo?.fullName || 'Lawyer'
+              userName: user?.name || lawyerResult.lawyer?.personalInfo?.fullName || 'Lawyer'
             });
             console.log('👨‍💼 Joined as lawyer:', lawyerId);
           }
@@ -74,7 +77,6 @@ const LawyerDashboard = () => {
           if (chatRoomId && chatRoomId.includes(lawyerId) && mounted) {
             console.log('✅ Message is for this lawyer, processing...');
             
-            // Store client name if available
             if (messageData.senderName && messageData.senderType === 'client') {
               setClientNames(prev => ({
                 ...prev,
@@ -141,7 +143,6 @@ const LawyerDashboard = () => {
           console.log('📜 Lawyer loading chat history:', data.messages);
           if (mounted) {
             setMessages(data.messages || []);
-            // Extract client names from chat history
             const names = {};
             data.messages?.forEach(msg => {
               if (msg.senderName && msg.senderType === 'client') {
@@ -165,6 +166,8 @@ const LawyerDashboard = () => {
 
       } catch (error) {
         console.error('❌ Error initializing lawyer dashboard:', error);
+      } finally {
+        if (mounted) setLoading(false);
       }
     };
 
@@ -185,7 +188,7 @@ const LawyerDashboard = () => {
         console.log('🧹 Lawyer socket cleaned up and disconnected');
       }
     };
-  }, [lawyerId]);
+  }, [lawyerId, user]);
 
   useEffect(() => {
     if (selectedChatRoom && socket && isConnected) {
@@ -234,7 +237,7 @@ const LawyerDashboard = () => {
         message: currentMessage,
         senderId: lawyerId,
         senderType: 'lawyer',
-        senderName: lawyer?.personalInfo?.fullName || 'Lawyer',
+        senderName: user?.name || lawyer?.personalInfo?.fullName || 'Lawyer',
         messageId: `${Date.now()}_${lawyerId}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date()
       };
@@ -251,7 +254,7 @@ const LawyerDashboard = () => {
       
       socket.emit('send_message', messageData);
     }
-  }, [currentMessage, socket, selectedChatRoom, isConnected, lawyerId, lawyer]);
+  }, [currentMessage, socket, selectedChatRoom, isConnected, lawyerId, user, lawyer]);
 
   const handleTyping = useCallback((typing) => {
     if (socket && selectedChatRoom && isConnected) {
@@ -269,12 +272,10 @@ const LawyerDashboard = () => {
   };
 
   const formatChatRoomName = (chatRoomId) => {
-    // Check if we have the client name stored
     if (clientNames[chatRoomId]) {
       return clientNames[chatRoomId];
     }
     
-    // Try to get client name from recent messages
     const recentMessage = messages.find(msg => 
       msg.chatRoomId === chatRoomId && 
       msg.senderType === 'client' && 
@@ -285,7 +286,6 @@ const LawyerDashboard = () => {
       return recentMessage.senderName;
     }
     
-    // Fallback to client ID
     const clientId = getClientIdFromRoom(chatRoomId);
     return `Client: ${clientId}`;
   };
@@ -294,11 +294,51 @@ const LawyerDashboard = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  if (loading) {
+    return (
+      <div style={{
+        background: theme.primary,
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
+      }}>
+        <div style={{
+          textAlign: 'center',
+          background: theme.card,
+          padding: '2rem',
+          borderRadius: '12px',
+          border: `1px solid ${theme.border}`
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: `4px solid ${theme.border}`,
+            borderTop: `4px solid ${theme.accent}`,
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto 1rem auto'
+          }}></div>
+          <p style={{ color: theme.text, margin: 0 }}>
+            Loading lawyer dashboard...
+          </p>
+        </div>
+        <style jsx>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
   return (
     <div style={{ 
       background: theme.primary,
       minHeight: '100vh',
-      fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif',
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
       color: theme.text
     }}>
       {/* Top Navigation Bar */}
@@ -312,7 +352,7 @@ const LawyerDashboard = () => {
         justifyContent: 'space-between',
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
         position: 'sticky',
-        top: 0,
+        top: 64,
         zIndex: 100
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -328,7 +368,7 @@ const LawyerDashboard = () => {
             fontWeight: '600',
             fontSize: '16px'
           }}>
-            ⚖️
+            L
           </div>
           <div>
             <h1 style={{ 
@@ -337,14 +377,14 @@ const LawyerDashboard = () => {
               fontWeight: '600',
               color: theme.text
             }}>
-              LegalChat Pro - Lawyer Dashboard
+              Lawyer Dashboard
             </h1>
             <p style={{ 
               margin: 0, 
               fontSize: '14px', 
               color: theme.textSecondary
             }}>
-              {lawyer?.personalInfo.fullName || 'Loading...'}
+              {user?.name || lawyer?.personalInfo.fullName || 'Loading...'}
             </p>
           </div>
         </div>
@@ -389,7 +429,7 @@ const LawyerDashboard = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', height: 'calc(100vh - 60px)' }}>
+      <div style={{ display: 'flex', height: 'calc(100vh - 124px)' }}>
         {/* Sidebar */}
         <div style={{
           width: '320px',
@@ -460,7 +500,7 @@ const LawyerDashboard = () => {
                         fontSize: '14px',
                         fontWeight: '600'
                       }}>
-                        👤
+                        {formatChatRoomName(chatRoomId).charAt(0)}
                       </div>
                       <div style={{ flex: 1 }}>
                         <div style={{ 
@@ -540,7 +580,7 @@ const LawyerDashboard = () => {
                     fontSize: '16px',
                     fontWeight: '600'
                   }}>
-                    👤
+                    {formatChatRoomName(selectedChatRoom).charAt(0)}
                   </div>
                   <div>
                     <h3 style={{ 
@@ -668,7 +708,7 @@ const LawyerDashboard = () => {
                             fontWeight: '600',
                             flexShrink: 0
                           }}>
-                            {message.senderType === 'lawyer' ? '⚖️' : '👤'}
+                            {message.senderType === 'lawyer' ? 'L' : (message.senderName?.charAt(0) || 'C')}
                           </div>
 
                           <div style={{
@@ -739,7 +779,7 @@ const LawyerDashboard = () => {
                           justifyContent: 'center',
                           fontSize: '14px'
                         }}>
-                          👤
+                          C
                         </div>
                         <div style={{
                           background: theme.messageOther,
@@ -864,7 +904,7 @@ const LawyerDashboard = () => {
                   fontWeight: '600',
                   color: theme.text
                 }}>
-                  Welcome to LegalChat Pro
+                  Welcome to LegalPro
                 </h2>
                 <p style={{ 
                   margin: '0 0 8px 0', 

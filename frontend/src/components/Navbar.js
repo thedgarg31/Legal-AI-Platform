@@ -1,19 +1,27 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { isDarkMode, toggleTheme, theme } = useTheme();
+  const { user, isAuthenticated, logout } = useAuth();
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path;
+
+  const handleLogout = async () => {
+    await logout();
+    setIsUserMenuOpen(false);
+  };
 
   return (
     <nav style={{
       background: theme.header,
       borderBottom: `1px solid ${theme.border}`,
-      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       position: 'sticky',
       top: 0,
       zIndex: 1000,
@@ -22,13 +30,14 @@ const Navbar = () => {
       <div style={{
         maxWidth: '1200px',
         margin: '0 auto',
-        padding: '0 1rem',
+        padding: '0 1.5rem',
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        height: '70px'
+        height: '64px'
       }}>
-        {/* Logo - UPDATED */}
+        
+        {/* Compact Logo */}
         <Link to="/" style={{
           textDecoration: 'none',
           display: 'flex',
@@ -36,57 +45,48 @@ const Navbar = () => {
           gap: '8px'
         }}>
           <div style={{
-            width: '32px',
-            height: '32px',
+            width: '28px',
+            height: '28px',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '8px',
+            borderRadius: '6px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '16px',
+            fontSize: '14px',
             fontWeight: 'bold'
           }}>
-            ⚖️
+            L
           </div>
-          <div>
-            <h1 style={{
-              margin: 0,
-              fontSize: '18px',
-              fontWeight: '600',
-              color: theme.text,
-              fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
-            }}>
-              LegalChat Pro
-            </h1>
-            <p style={{
-              margin: 0,
-              fontSize: '10px',
-              color: theme.textSecondary,
-              fontWeight: '400'
-            }}>
-              Professional Legal Platform
-            </p>
-          </div>
+          <span style={{
+            fontSize: '18px',
+            fontWeight: '700',
+            color: theme.text,
+            fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
+          }}>
+            LegalPro
+          </span>
         </Link>
 
-        {/* Desktop Navigation */}
+        {/* Desktop Navigation - Clean & Minimal */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           gap: '2rem'
         }}>
+          
+          {/* Main Navigation Links */}
           <div style={{
             display: 'flex',
-            gap: '1.5rem',
+            gap: '0.5rem',
             alignItems: 'center'
           }}>
             {[
               { path: '/', label: 'Home' },
-              { path: '/about', label: 'About' },
+              { path: '/lawyers', label: 'Lawyers' },
+              { path: '/document-analysis', label: 'Document Analysis' },
               { path: '/services', label: 'Services' },
-              { path: '/lawyers', label: 'Find Lawyers' },
-              { path: '/document-analysis', label: '📄 Document Analysis' },
+              { path: '/about', label: 'About' },
               { path: '/contact', label: 'Contact' }
             ].map(({ path, label }) => (
               <Link
@@ -95,25 +95,22 @@ const Navbar = () => {
                 style={{
                   textDecoration: 'none',
                   color: isActive(path) ? theme.accent : theme.text,
-                  fontSize: '16px',
+                  fontSize: '14px',
                   fontWeight: '500',
                   padding: '8px 16px',
-                  borderRadius: '8px',
-                  background: isActive(path) ? `${theme.accent}15` : 'transparent',
-                  border: isActive(path) ? `1px solid ${theme.accent}` : '1px solid transparent',
-                  transition: 'all 0.3s ease',
-                  fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
+                  borderRadius: '6px',
+                  background: isActive(path) ? `${theme.accent}10` : 'transparent',
+                  transition: 'all 0.2s ease',
+                  fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
                 }}
                 onMouseEnter={(e) => {
                   if (!isActive(path)) {
                     e.target.style.background = theme.tertiary;
-                    e.target.style.color = theme.text;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!isActive(path)) {
                     e.target.style.background = 'transparent';
-                    e.target.style.color = theme.text;
                   }
                 }}
               >
@@ -122,74 +119,309 @@ const Navbar = () => {
             ))}
           </div>
 
-          {/* Theme Toggle & CTA */}
+          {/* Right Side Actions */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
             gap: '1rem'
           }}>
-            {/* Theme Toggle Button */}
+            
+            {/* Theme Toggle - Minimal */}
             <button
               onClick={toggleTheme}
               style={{
-                background: theme.tertiary,
+                background: 'transparent',
                 border: `1px solid ${theme.border}`,
-                borderRadius: '8px',
-                padding: '8px 12px',
+                borderRadius: '6px',
+                padding: '6px',
                 cursor: 'pointer',
                 color: theme.text,
-                fontSize: '16px',
+                fontSize: '14px',
+                width: '32px',
+                height: '32px',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.3s ease',
-                fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
+                justifyContent: 'center',
+                transition: 'all 0.2s ease'
               }}
               onMouseEnter={(e) => {
-                e.target.style.background = theme.accent;
-                e.target.style.color = 'white';
-                e.target.style.borderColor = theme.accent;
+                e.target.style.background = theme.tertiary;
               }}
               onMouseLeave={(e) => {
-                e.target.style.background = theme.tertiary;
-                e.target.style.color = theme.text;
-                e.target.style.borderColor = theme.border;
+                e.target.style.background = 'transparent';
               }}
             >
-              {isDarkMode ? '☀️' : '🌙'}
-              <span style={{ fontSize: '14px', fontWeight: '500' }}>
-                {isDarkMode ? 'Light' : 'Dark'}
-              </span>
+              {isDarkMode ? '☀' : '🌙'}
             </button>
 
-            {/* Join as Lawyer Button */}
-            <Link
-              to="/lawyer-registration"
-              style={{
-                textDecoration: 'none',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                padding: '10px 20px',
-                borderRadius: '8px',
-                fontSize: '14px',
-                fontWeight: '600',
-                border: 'none',
-                cursor: 'pointer',
-                transition: 'all 0.3s ease',
-                boxShadow: '0 2px 8px rgba(102, 126, 234, 0.3)',
-                fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
-              }}
-              onMouseEnter={(e) => {
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 4px 12px rgba(102, 126, 234, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
-              }}
-            >
-              Join as Lawyer
-            </Link>
+            {/* User Section */}
+            {isAuthenticated ? (
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    background: theme.tertiary,
+                    border: `1px solid ${theme.border}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = theme.accent + '20';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = theme.tertiary;
+                  }}
+                >
+                  {/* User Avatar */}
+                  <div style={{
+                    width: '24px',
+                    height: '24px',
+                    borderRadius: '50%',
+                    background: user.profile?.profilePhoto 
+                      ? `url(http://localhost:5000/uploads/profiles/${user.profile.profilePhoto})` 
+                      : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    fontSize: '10px',
+                    fontWeight: 'bold',
+                    position: 'relative'
+                  }}>
+                    {!user.profile?.profilePhoto && user.name?.charAt(0)}
+                    
+                    {/* Lawyer Badge */}
+                    {user.isLawyer && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '-2px',
+                        right: '-2px',
+                        width: '12px',
+                        height: '12px',
+                        background: '#4CAF50',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '8px',
+                        color: 'white',
+                        border: `2px solid ${theme.header}`
+                      }}>
+                        ✓
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{
+                      fontSize: '14px',
+                      fontWeight: '500',
+                      color: theme.text,
+                      maxWidth: '100px',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {user.name}
+                    </span>
+                    
+                    {/* Lawyer Badge Text */}
+                    {user.isLawyer && (
+                      <span style={{
+                        fontSize: '10px',
+                        background: '#4CAF50',
+                        color: 'white',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontWeight: '600'
+                      }}>
+                        LAWYER
+                      </span>
+                    )}
+                  </div>
+                  
+                  <span style={{
+                    fontSize: '12px',
+                    color: theme.textSecondary,
+                    transform: isUserMenuOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s ease'
+                  }}>
+                    ▼
+                  </span>
+                </button>
+
+                {/* User Dropdown Menu */}
+                {isUserMenuOpen && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: '8px',
+                    background: theme.card,
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    minWidth: '180px',
+                    zIndex: 1000
+                  }}>
+                    <div style={{
+                      padding: '12px 16px',
+                      borderBottom: `1px solid ${theme.border}`
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        marginBottom: '4px'
+                      }}>
+                        <span style={{
+                          fontSize: '14px',
+                          fontWeight: '600',
+                          color: theme.text
+                        }}>
+                          {user.name}
+                        </span>
+                        {user.isLawyer && (
+                          <span style={{
+                            fontSize: '9px',
+                            background: '#4CAF50',
+                            color: 'white',
+                            padding: '2px 4px',
+                            borderRadius: '8px',
+                            fontWeight: '600'
+                          }}>
+                            LAWYER
+                          </span>
+                        )}
+                      </div>
+                      <div style={{
+                        fontSize: '12px',
+                        color: theme.textSecondary
+                      }}>
+                        {user.email}
+                      </div>
+                    </div>
+                    
+                    {[
+                      { path: '/profile', label: 'Profile' },
+                      { path: '/chat-history', label: 'Chat History' },
+                      ...(user.isLawyer && user.lawyerId ? [{ 
+                        path: `/lawyer-dashboard/${user.lawyerId}`, 
+                        label: 'Lawyer Dashboard' 
+                      }] : [])
+                    ].map(({ path, label }) => (
+                      <Link
+                        key={path}
+                        to={path}
+                        onClick={() => setIsUserMenuOpen(false)}
+                        style={{
+                          display: 'block',
+                          padding: '12px 16px',
+                          textDecoration: 'none',
+                          color: theme.text,
+                          fontSize: '14px',
+                          transition: 'background 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = theme.tertiary;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'transparent';
+                        }}
+                      >
+                        {label}
+                      </Link>
+                    ))}
+                    
+                    <div style={{
+                      borderTop: `1px solid ${theme.border}`,
+                      padding: '8px'
+                    }}>
+                      <button
+                        onClick={handleLogout}
+                        style={{
+                          width: '100%',
+                          padding: '8px 12px',
+                          background: 'transparent',
+                          border: 'none',
+                          color: theme.danger,
+                          fontSize: '14px',
+                          fontWeight: '500',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          transition: 'background 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = theme.danger + '10';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'transparent';
+                        }}
+                      >
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <Link
+                  to="/auth"
+                  style={{
+                    textDecoration: 'none',
+                    background: 'transparent',
+                    color: theme.text,
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    border: `1px solid ${theme.border}`,
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.background = theme.tertiary;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.background = 'transparent';
+                  }}
+                >
+                  Sign In
+                </Link>
+                
+                <Link
+                  to="/lawyer-registration"
+                  style={{
+                    textDecoration: 'none',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    border: 'none',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.target.style.transform = 'translateY(-1px)';
+                    e.target.style.boxShadow = '0 2px 8px rgba(102, 126, 234, 0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.target.style.transform = 'translateY(0)';
+                    e.target.style.boxShadow = 'none';
+                  }}
+                >
+                  Join as Lawyer
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
@@ -200,9 +432,10 @@ const Navbar = () => {
             display: 'none',
             background: 'none',
             border: 'none',
-            fontSize: '24px',
+            fontSize: '20px',
             color: theme.text,
             cursor: 'pointer',
+            padding: '4px',
             '@media (max-width: 768px)': {
               display: 'block'
             }
@@ -217,78 +450,193 @@ const Navbar = () => {
         <div style={{
           background: theme.secondary,
           borderTop: `1px solid ${theme.border}`,
-          padding: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1rem'
+          padding: '1rem'
         }}>
           {[
             { path: '/', label: 'Home' },
-            { path: '/about', label: 'About' },
+            { path: '/lawyers', label: 'Lawyers' },
+            { path: '/document-analysis', label: 'Document Analysis' },
             { path: '/services', label: 'Services' },
-            { path: '/lawyers', label: 'Find Lawyers' },
-            { path: '/document-analysis', label: '📄 Document Analysis' },
-            { path: '/contact', label: 'Contact' }
+            { path: '/about', label: 'About' },
+            { path: '/contact', label: 'Contact' },
+            ...(isAuthenticated ? [
+              { path: '/profile', label: 'Profile' },
+              { path: '/chat-history', label: 'Chat History' },
+              ...(user.isLawyer && user.lawyerId ? [{ 
+                path: `/lawyer-dashboard/${user.lawyerId}`, 
+                label: 'Lawyer Dashboard' 
+              }] : [])
+            ] : [])
           ].map(({ path, label }) => (
             <Link
               key={path}
               to={path}
               onClick={() => setIsMenuOpen(false)}
               style={{
+                display: 'block',
+                padding: '12px 0',
                 textDecoration: 'none',
                 color: theme.text,
                 fontSize: '16px',
                 fontWeight: '500',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                background: isActive(path) ? theme.accent : 'transparent',
-                transition: 'all 0.3s ease'
+                borderBottom: `1px solid ${theme.border}`
               }}
             >
               {label}
             </Link>
           ))}
           
-          <div style={{
-            display: 'flex',
-            gap: '1rem',
-            marginTop: '1rem'
-          }}>
+          {/* Mobile User Info */}
+          {isAuthenticated && (
+            <div style={{
+              padding: '12px 0',
+              borderBottom: `1px solid ${theme.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: user.profile?.profilePhoto 
+                  ? `url(http://localhost:5000/uploads/profiles/${user.profile.profilePhoto})` 
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                fontSize: '14px',
+                fontWeight: 'bold',
+                position: 'relative'
+              }}>
+                {!user.profile?.profilePhoto && user.name?.charAt(0)}
+                {user.isLawyer && (
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '-2px',
+                    right: '-2px',
+                    width: '12px',
+                    height: '12px',
+                    background: '#4CAF50',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '8px',
+                    color: 'white',
+                    border: `2px solid ${theme.secondary}`
+                  }}>
+                    ✓
+                  </div>
+                )}
+              </div>
+              <div>
+                <div style={{ 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: theme.text,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  {user.name}
+                  {user.isLawyer && (
+                    <span style={{
+                      fontSize: '9px',
+                      background: '#4CAF50',
+                      color: 'white',
+                      padding: '2px 4px',
+                      borderRadius: '8px',
+                      fontWeight: '600'
+                    }}>
+                      LAWYER
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '12px', color: theme.textSecondary }}>
+                  {user.email}
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {isAuthenticated ? (
             <button
-              onClick={toggleTheme}
+              onClick={() => {
+                handleLogout();
+                setIsMenuOpen(false);
+              }}
               style={{
-                flex: 1,
-                background: theme.tertiary,
-                border: `1px solid ${theme.border}`,
-                borderRadius: '8px',
-                padding: '12px',
-                color: theme.text,
+                width: '100%',
+                padding: '12px 0',
+                background: 'none',
+                border: 'none',
+                color: theme.danger,
                 fontSize: '16px',
+                fontWeight: '500',
+                textAlign: 'left',
                 cursor: 'pointer'
               }}
             >
-              {isDarkMode ? '☀️ Light Mode' : '🌙 Dark Mode'}
+              Sign Out
             </button>
-            
-            <Link
-              to="/lawyer-registration"
-              onClick={() => setIsMenuOpen(false)}
-              style={{
-                flex: 1,
-                textDecoration: 'none',
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                color: 'white',
-                padding: '12px',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: '600',
-                textAlign: 'center'
-              }}
-            >
-              Join as Lawyer
-            </Link>
-          </div>
+          ) : (
+            <div style={{ paddingTop: '1rem', display: 'flex', gap: '1rem' }}>
+              <Link
+                to="/auth"
+                onClick={() => setIsMenuOpen(false)}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '12px',
+                  background: theme.tertiary,
+                  color: theme.text,
+                  textDecoration: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/lawyer-registration"
+                onClick={() => setIsMenuOpen(false)}
+                style={{
+                  flex: 1,
+                  textAlign: 'center',
+                  padding: '12px',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+              >
+                Join as Lawyer
+              </Link>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Click outside to close user menu */}
+      {isUserMenuOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999
+          }}
+          onClick={() => setIsUserMenuOpen(false)}
+        />
       )}
     </nav>
   );

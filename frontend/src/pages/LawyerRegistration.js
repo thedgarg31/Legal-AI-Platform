@@ -1,51 +1,54 @@
 import React, { useState } from 'react';
-import { registerLawyer } from '../api/lawyers';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const LawyerRegistration = () => {
+  const { theme } = useTheme();
+  const { registerLawyer } = useAuth();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [currentStep, setCurrentStep] = useState(1);
+
   const [formData, setFormData] = useState({
+    // Personal Information
     fullName: '',
     email: '',
+    password: '',
+    confirmPassword: '',
     phone: '',
-    advocateCode: '',
-    stateBarCouncil: '',
-    enrollmentDate: '',
-    university: '',
-    graduationYear: '',
+    dateOfBirth: '',
+    gender: '',
+    
+    // Professional Information
+    barRegistrationNumber: '',
     specializations: [],
     experience: '',
-    courtsPracticing: [],
+    education: '',
+    
+    // Practice Information
     consultationFees: '',
-    languages: [],
-    street: '',
+    availability: 'available',
+    practiceAreas: [],
+    
+    // Address
+    address: '',
     city: '',
     state: '',
     zipCode: ''
   });
 
-  const [files, setFiles] = useState({
-    profilePhoto: null,
-    enrollmentCertificate: null,
-    degreeProof: null,
-    identityProof: null,
-    addressProof: null
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
-
   const specializations = [
     'Criminal Law', 'Civil Law', 'Corporate Law', 'Family Law', 
-    'Property Law', 'Labour Law', 'Tax Law', 'Constitutional Law',
-    'Intellectual Property Law', 'Environmental Law', 'Banking Law', 'Insurance Law'
+    'Property Law', 'Tax Law', 'Labor Law', 'Constitutional Law',
+    'Environmental Law', 'Intellectual Property', 'Immigration Law'
   ];
 
-  const courts = [
-    'Supreme Court', 'High Court', 'District Court', 'Sessions Court', 'Magistrate Court'
-  ];
-
-  const languages = [
-    'English', 'Hindi', 'Bengali', 'Telugu', 'Marathi', 'Tamil', 'Gujarati', 'Kannada',
-    'Malayalam', 'Punjabi', 'Odia', 'Assamese'
+  const practiceAreas = [
+    'Litigation', 'Legal Consultation', 'Document Review', 
+    'Contract Drafting', 'Legal Research', 'Mediation', 'Arbitration'
   ];
 
   const handleInputChange = (e) => {
@@ -56,731 +59,898 @@ const LawyerRegistration = () => {
     }));
   };
 
-  const handleMultiSelect = (name, value) => {
+  const handleCheckboxChange = (e, field) => {
+    const { value, checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: prev[name].includes(value) 
-        ? prev[name].filter(item => item !== value)
-        : [...prev[name], value]
+      [field]: checked 
+        ? [...prev[field], value]
+        : prev[field].filter(item => item !== value)
     }));
   };
 
-  const handleFileChange = (e) => {
-    const { name, files: fileList } = e.target;
-    setFiles(prev => ({
-      ...prev,
-      [name]: fileList[0]
-    }));
+  const validateStep = (step) => {
+    switch (step) {
+      case 1:
+        if (!formData.fullName || !formData.email || !formData.password || !formData.phone) {
+          setError('Please fill all required fields');
+          return false;
+        }
+        if (formData.password !== formData.confirmPassword) {
+          setError('Passwords do not match');
+          return false;
+        }
+        if (formData.password.length < 6) {
+          setError('Password must be at least 6 characters long');
+          return false;
+        }
+        break;
+      case 2:
+        if (!formData.barRegistrationNumber || !formData.experience || formData.specializations.length === 0) {
+          setError('Please fill all required professional information');
+          return false;
+        }
+        break;
+      case 3:
+        if (!formData.consultationFees || formData.practiceAreas.length === 0) {
+          setError('Please fill all required practice information');
+          return false;
+        }
+        break;
+    }
+    setError('');
+    return true;
+  };
+
+  const nextStep = () => {
+    if (validateStep(currentStep)) {
+      setCurrentStep(prev => prev + 1);
+    }
+  };
+
+  const prevStep = () => {
+    setCurrentStep(prev => prev - 1);
+    setError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateStep(3)) return;
+    
     setLoading(true);
-    setMessage('');
+    setError('');
 
     try {
-      const result = await registerLawyer(formData, files);
+      const lawyerData = {
+        personalInfo: {
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+          dateOfBirth: formData.dateOfBirth,
+          gender: formData.gender,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zipCode: formData.zipCode
+        },
+        credentials: {
+          barRegistrationNumber: formData.barRegistrationNumber,
+          specializations: formData.specializations,
+          experience: parseInt(formData.experience),
+          education: formData.education
+        },
+        availability: {
+          isOnline: true,
+          consultationFees: parseInt(formData.consultationFees),
+          status: formData.availability
+        },
+        practiceAreas: formData.practiceAreas
+      };
+
+      const result = await registerLawyer(lawyerData);
+      
       if (result.success) {
-        setMessage('Registration submitted successfully! Your application is under review.');
-        // Reset form
-        setFormData({
-          fullName: '', email: '', phone: '', advocateCode: '', stateBarCouncil: '',
-          enrollmentDate: '', university: '', graduationYear: '', specializations: [],
-          experience: '', courtsPracticing: [], consultationFees: '', languages: [],
-          street: '', city: '', state: '', zipCode: ''
-        });
-        setFiles({
-          profilePhoto: null, enrollmentCertificate: null, degreeProof: null,
-          identityProof: null, addressProof: null
-        });
+        setSuccess(result.message || 'Lawyer account created successfully! You are now logged in.');
+        setTimeout(() => {
+          navigate('/', { 
+            state: { 
+              message: 'Welcome to LegalPro! Your lawyer account is now active.' 
+            } 
+          });
+        }, 2000);
+      } else {
+        setError(result.message || 'Registration failed');
       }
     } catch (error) {
-      setMessage('Registration failed. Please try again.');
       console.error('Registration error:', error);
+      setError('Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div>
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: '600',
+              marginBottom: '1.5rem',
+              color: theme.text,
+              textAlign: 'center'
+            }}>
+              Personal Information
+            </h2>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '1rem',
+              marginBottom: '1rem'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  name="fullName"
+                  value={formData.fullName}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Password *
+                </label>
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Confirm Password *
+                </label>
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Phone Number *
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Date of Birth
+                </label>
+                <input
+                  type="date"
+                  name="dateOfBirth"
+                  value={formData.dateOfBirth}
+                  onChange={handleInputChange}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div>
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: '600',
+              marginBottom: '1.5rem',
+              color: theme.text,
+              textAlign: 'center'
+            }}>
+              Professional Information
+            </h2>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '1rem',
+              marginBottom: '1rem'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Bar Registration Number *
+                </label>
+                <input
+                  type="text"
+                  name="barRegistrationNumber"
+                  value={formData.barRegistrationNumber}
+                  onChange={handleInputChange}
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Years of Experience *
+                </label>
+                <input
+                  type="number"
+                  name="experience"
+                  value={formData.experience}
+                  onChange={handleInputChange}
+                  required
+                  min="0"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Education Background
+                </label>
+                <textarea
+                  name="education"
+                  value={formData.education}
+                  onChange={handleInputChange}
+                  rows={3}
+                  placeholder="e.g., LLB from XYZ University, LLM from ABC College"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                marginBottom: '1rem',
+                color: theme.text,
+                fontWeight: '500'
+              }}>
+                Specializations * (Select at least one)
+              </label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '0.5rem'
+              }}>
+                {specializations.map(spec => (
+                  <label key={spec} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    background: formData.specializations.includes(spec) ? `${theme.accent}20` : theme.tertiary,
+                    border: `1px solid ${formData.specializations.includes(spec) ? theme.accent : theme.border}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="checkbox"
+                      value={spec}
+                      checked={formData.specializations.includes(spec)}
+                      onChange={(e) => handleCheckboxChange(e, 'specializations')}
+                      style={{ margin: 0 }}
+                    />
+                    <span style={{
+                      fontSize: '14px',
+                      color: theme.text
+                    }}>
+                      {spec}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
+          <div>
+            <h2 style={{
+              fontSize: '1.5rem',
+              fontWeight: '600',
+              marginBottom: '1.5rem',
+              color: theme.text,
+              textAlign: 'center'
+            }}>
+              Practice Information
+            </h2>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+              gap: '1rem',
+              marginBottom: '2rem'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Consultation Fees (₹) *
+                </label>
+                <input
+                  type="number"
+                  name="consultationFees"
+                  value={formData.consultationFees}
+                  onChange={handleInputChange}
+                  required
+                  min="0"
+                  placeholder="e.g., 2000"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: theme.text,
+                  fontWeight: '500'
+                }}>
+                  Availability Status
+                </label>
+                <select
+                  name="availability"
+                  value={formData.availability}
+                  onChange={handleInputChange}
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: '8px',
+                    background: theme.primary,
+                    color: theme.text,
+                    fontSize: '1rem',
+                    outline: 'none'
+                  }}
+                >
+                  <option value="available">Available</option>
+                  <option value="busy">Busy</option>
+                  <option value="unavailable">Unavailable</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '2rem' }}>
+              <label style={{
+                display: 'block',
+                marginBottom: '1rem',
+                color: theme.text,
+                fontWeight: '500'
+              }}>
+                Practice Areas * (Select at least one)
+              </label>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '0.5rem'
+              }}>
+                {practiceAreas.map(area => (
+                  <label key={area} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    background: formData.practiceAreas.includes(area) ? `${theme.accent}20` : theme.tertiary,
+                    border: `1px solid ${formData.practiceAreas.includes(area) ? theme.accent : theme.border}`,
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}>
+                    <input
+                      type="checkbox"
+                      value={area}
+                      checked={formData.practiceAreas.includes(area)}
+                      onChange={(e) => handleCheckboxChange(e, 'practiceAreas')}
+                      style={{ margin: 0 }}
+                    />
+                    <span style={{
+                      fontSize: '14px',
+                      color: theme.text
+                    }}>
+                      {area}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 style={{
+                fontSize: '1.2rem',
+                fontWeight: '600',
+                marginBottom: '1rem',
+                color: theme.text
+              }}>
+                Address Information
+              </h3>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '1rem'
+              }}>
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    color: theme.text,
+                    fontWeight: '500'
+                  }}>
+                    Address
+                  </label>
+                  <input
+                    type="text"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleInputChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: '8px',
+                      background: theme.primary,
+                      color: theme.text,
+                      fontSize: '1rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    color: theme.text,
+                    fontWeight: '500'
+                  }}>
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleInputChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: '8px',
+                      background: theme.primary,
+                      color: theme.text,
+                      fontSize: '1rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    color: theme.text,
+                    fontWeight: '500'
+                  }}>
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    name="state"
+                    value={formData.state}
+                    onChange={handleInputChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: '8px',
+                      background: theme.primary,
+                      color: theme.text,
+                      fontSize: '1rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '0.5rem',
+                    color: theme.text,
+                    fontWeight: '500'
+                  }}>
+                    ZIP Code
+                  </label>
+                  <input
+                    type="text"
+                    name="zipCode"
+                    value={formData.zipCode}
+                    onChange={handleInputChange}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: `1px solid ${theme.border}`,
+                      borderRadius: '8px',
+                      background: theme.primary,
+                      color: theme.text,
+                      fontSize: '1rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
-    <div style={{ 
-      padding: '2rem', 
-      maxWidth: '900px', 
-      margin: '0 auto',
-      background: '#ffffff',
-      minHeight: '100vh'
+    <div style={{
+      background: theme.primary,
+      minHeight: '100vh',
+      fontFamily: '"Inter", system-ui, -apple-system, sans-serif',
+      color: theme.text,
+      padding: '2rem 1rem'
     }}>
-      <div className="fade-in-up" style={{ textAlign: 'center', marginBottom: '3rem' }}>
-        <h1 style={{
-          fontSize: '2.5rem',
-          color: '#0E0F22',
-          marginBottom: '1rem',
-          fontWeight: 'bold'
-        }}>
-          Register as a <span style={{ color: '#666FD0' }}>Lawyer</span>
-        </h1>
-        <p style={{ color: '#6c757d', fontSize: '1.1rem' }}>
-          Join our platform and connect with clients who need your expertise
-        </p>
-      </div>
-
-      {message && (
+      <div style={{
+        maxWidth: '800px',
+        margin: '0 auto'
+      }}>
+        {/* Header */}
         <div style={{
-          background: message.includes('successfully') ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
-          color: message.includes('successfully') ? '#4caf50' : '#f44336',
-          padding: '1rem',
-          borderRadius: '8px',
-          marginBottom: '2rem',
           textAlign: 'center',
-          border: `1px solid ${message.includes('successfully') ? '#4caf50' : '#f44336'}`
+          marginBottom: '2rem'
         }}>
-          {message}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit}>
-        {/* Personal Information */}
-        <div className="card" style={{ marginBottom: '2rem', padding: '2rem' }}>
-          <h3 style={{ color: '#666FD0', marginBottom: '1.5rem', fontSize: '1.3rem' }}>
-            📋 Personal Information
-          </h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Full Name *
-              </label>
-              <input
-                type="text"
-                name="fullName"
-                value={formData.fullName}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your full name"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Email Address *
-              </label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                placeholder="your.email@example.com"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-              Phone Number *
-            </label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleInputChange}
-              required
-              placeholder="+91 9876543210"
-              style={{ 
-                width: '100%', 
-                padding: '0.75rem', 
-                border: '2px solid #e9ecef', 
-                borderRadius: '8px',
-                fontSize: '1rem',
-                transition: 'border-color 0.3s ease'
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-              Profile Photo
-            </label>
-            <input
-              type="file"
-              name="profilePhoto"
-              accept="image/*"
-              onChange={handleFileChange}
-              style={{ 
-                width: '100%', 
-                padding: '0.75rem', 
-                border: '2px solid #e9ecef', 
-                borderRadius: '8px',
-                fontSize: '1rem',
-                backgroundColor: '#f8f9fa'
-              }}
-            />
-            <small style={{ color: '#6c757d', fontSize: '0.85rem' }}>
-              Upload a professional photo (JPG, PNG - Max 5MB)
-            </small>
-          </div>
-        </div>
-
-        {/* Professional Credentials */}
-        <div className="card" style={{ marginBottom: '2rem', padding: '2rem' }}>
-          <h3 style={{ color: '#666FD0', marginBottom: '1.5rem', fontSize: '1.3rem' }}>
-            ⚖️ Professional Credentials
-          </h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Advocate Code *
-              </label>
-              <input
-                type="text"
-                name="advocateCode"
-                value={formData.advocateCode}
-                onChange={handleInputChange}
-                placeholder="e.g., DL/2020/12345"
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                State Bar Council *
-              </label>
-              <input
-                type="text"
-                name="stateBarCouncil"
-                value={formData.stateBarCouncil}
-                onChange={handleInputChange}
-                placeholder="e.g., Bar Council of Delhi"
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Enrollment Date *
-              </label>
-              <input
-                type="date"
-                name="enrollmentDate"
-                value={formData.enrollmentDate}
-                onChange={handleInputChange}
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Experience (years) *
-              </label>
-              <input
-                type="number"
-                name="experience"
-                value={formData.experience}
-                onChange={handleInputChange}
-                min="0"
-                max="50"
-                required
-                placeholder="5"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                University *
-              </label>
-              <input
-                type="text"
-                name="university"
-                value={formData.university}
-                onChange={handleInputChange}
-                required
-                placeholder="Delhi University"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Graduation Year *
-              </label>
-              <input
-                type="number"
-                name="graduationYear"
-                value={formData.graduationYear}
-                onChange={handleInputChange}
-                min="1950"
-                max="2025"
-                required
-                placeholder="2018"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Specializations - Improved Layout */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '1rem', display: 'block' }}>
-              Specializations * (Select all that apply)
-            </label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
-              gap: '1rem',
-              padding: '1.5rem',
-              background: '#f8f9fa',
-              borderRadius: '12px',
-              border: '2px solid #e9ecef'
-            }}>
-              {specializations.map(spec => (
-                <label key={spec} style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.75rem', 
-                  cursor: 'pointer',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  transition: 'all 0.3s ease',
-                  backgroundColor: formData.specializations.includes(spec) ? 'rgba(102, 111, 208, 0.1)' : 'transparent',
-                  border: formData.specializations.includes(spec) ? '1px solid #666FD0' : '1px solid transparent'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.specializations.includes(spec)}
-                    onChange={() => handleMultiSelect('specializations', spec)}
-                    style={{
-                      width: '20px',
-                      height: '20px',
-                      accentColor: '#666FD0',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{ 
-                    color: '#0E0F22', 
-                    fontSize: '0.95rem',
-                    fontWeight: '500'
-                  }}>
-                    {spec}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Courts Practicing - Improved Layout */}
-          <div>
-            <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '1rem', display: 'block' }}>
-              Courts Practicing * (Select all that apply)
-            </label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', 
-              gap: '1rem',
-              padding: '1.5rem',
-              background: '#f8f9fa',
-              borderRadius: '12px',
-              border: '2px solid #e9ecef'
-            }}>
-              {courts.map(court => (
-                <label key={court} style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.75rem', 
-                  cursor: 'pointer',
-                  padding: '0.75rem',
-                  borderRadius: '8px',
-                  transition: 'all 0.3s ease',
-                  backgroundColor: formData.courtsPracticing.includes(court) ? 'rgba(102, 111, 208, 0.1)' : 'transparent',
-                  border: formData.courtsPracticing.includes(court) ? '1px solid #666FD0' : '1px solid transparent'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.courtsPracticing.includes(court)}
-                    onChange={() => handleMultiSelect('courtsPracticing', court)}
-                    style={{
-                      width: '20px',
-                      height: '20px',
-                      accentColor: '#666FD0',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{ 
-                    color: '#0E0F22', 
-                    fontSize: '0.95rem',
-                    fontWeight: '500'
-                  }}>
-                    {court}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Documents Upload */}
-        <div className="card" style={{ marginBottom: '2rem', padding: '2rem' }}>
-          <h3 style={{ color: '#666FD0', marginBottom: '1.5rem', fontSize: '1.3rem' }}>
-            📁 Required Documents
-          </h3>
-          
-          <div style={{ display: 'grid', gap: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Enrollment Certificate *
-              </label>
-              <input
-                type="file"
-                name="enrollmentCertificate"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange}
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  backgroundColor: '#f8f9fa'
-                }}
-              />
-              <small style={{ color: '#6c757d', fontSize: '0.85rem' }}>
-                Upload your Bar Council enrollment certificate
-              </small>
-            </div>
-            
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Law Degree Certificate *
-              </label>
-              <input
-                type="file"
-                name="degreeProof"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange}
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  backgroundColor: '#f8f9fa'
-                }}
-              />
-              <small style={{ color: '#6c757d', fontSize: '0.85rem' }}>
-                Upload your LLB/LLM degree certificate
-              </small>
-            </div>
-            
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Identity Proof (Aadhaar/PAN) *
-              </label>
-              <input
-                type="file"
-                name="identityProof"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange}
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  backgroundColor: '#f8f9fa'
-                }}
-              />
-              <small style={{ color: '#6c757d', fontSize: '0.85rem' }}>
-                Upload Aadhaar card, PAN card, or passport
-              </small>
-            </div>
-            
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Address Proof *
-              </label>
-              <input
-                type="file"
-                name="addressProof"
-                accept=".pdf,.jpg,.jpeg,.png"
-                onChange={handleFileChange}
-                required
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  backgroundColor: '#f8f9fa'
-                }}
-              />
-              <small style={{ color: '#6c757d', fontSize: '0.85rem' }}>
-                Upload utility bill, bank statement, or rental agreement
-              </small>
-            </div>
-          </div>
-        </div>
-
-        {/* Additional Information */}
-        <div className="card" style={{ marginBottom: '2rem', padding: '2rem' }}>
-          <h3 style={{ color: '#666FD0', marginBottom: '1.5rem', fontSize: '1.3rem' }}>
-            ℹ️ Additional Information
-          </h3>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                Consultation Fee (₹) *
-              </label>
-              <input
-                type="number"
-                name="consultationFees"
-                value={formData.consultationFees}
-                onChange={handleInputChange}
-                min="100"
-                max="50000"
-                required
-                placeholder="2000"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-              <small style={{ color: '#6c757d', fontSize: '0.85rem' }}>
-                Per consultation fee in Indian Rupees
-              </small>
-            </div>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                City *
-              </label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleInputChange}
-                required
-                placeholder="New Delhi"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                State *
-              </label>
-              <input
-                type="text"
-                name="state"
-                value={formData.state}
-                onChange={handleInputChange}
-                required
-                placeholder="Delhi"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '0.5rem', display: 'block' }}>
-                ZIP Code
-              </label>
-              <input
-                type="text"
-                name="zipCode"
-                value={formData.zipCode}
-                onChange={handleInputChange}
-                placeholder="110001"
-                style={{ 
-                  width: '100%', 
-                  padding: '0.75rem', 
-                  border: '2px solid #e9ecef', 
-                  borderRadius: '8px',
-                  fontSize: '1rem',
-                  transition: 'border-color 0.3s ease'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Languages - Improved Layout */}
-          <div>
-            <label style={{ color: '#0E0F22', fontWeight: '600', marginBottom: '1rem', display: 'block' }}>
-              Languages Spoken (Select all that apply)
-            </label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
-              gap: '1rem',
-              padding: '1.5rem',
-              background: '#f8f9fa',
-              borderRadius: '12px',
-              border: '2px solid #e9ecef'
-            }}>
-              {languages.map(lang => (
-                <label key={lang} style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '0.75rem', 
-                  cursor: 'pointer',
-                  padding: '0.5rem',
-                  borderRadius: '6px',
-                  transition: 'all 0.3s ease',
-                  backgroundColor: formData.languages.includes(lang) ? 'rgba(102, 111, 208, 0.1)' : 'transparent',
-                  border: formData.languages.includes(lang) ? '1px solid #666FD0' : '1px solid transparent'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={formData.languages.includes(lang)}
-                    onChange={() => handleMultiSelect('languages', lang)}
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      accentColor: '#666FD0',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{ 
-                    color: '#0E0F22', 
-                    fontSize: '0.9rem',
-                    fontWeight: '500'
-                  }}>
-                    {lang}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Submit Button */}
-        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <button
-            type="submit"
-            disabled={loading}
-            style={{
-              background: loading ? '#e9ecef' : 'linear-gradient(135deg, #666FD0 0%, #4c63d2 100%)',
-              color: loading ? '#6c757d' : 'white',
-              padding: '1.25rem 4rem',
-              fontSize: '1.2rem',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-              transition: 'all 0.3s ease',
-              boxShadow: loading ? 'none' : '0 8px 25px rgba(102, 111, 208, 0.4)',
-              transform: loading ? 'none' : 'translateY(0)',
-              minWidth: '250px'
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                e.target.style.transform = 'translateY(-2px)';
-                e.target.style.boxShadow = '0 12px 35px rgba(102, 111, 208, 0.5)';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!loading) {
-                e.target.style.transform = 'translateY(0)';
-                e.target.style.boxShadow = '0 8px 25px rgba(102, 111, 208, 0.4)';
-              }
-            }}
-          >
-            {loading ? (
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-                <div className="loading-spinner" style={{ width: '20px', height: '20px' }}></div>
-                Submitting...
-              </span>
-            ) : (
-              '📝 Submit Registration'
-            )}
-          </button>
-          
-          <p style={{ color: '#6c757d', marginTop: '1rem', fontSize: '0.9rem' }}>
-            Your application will be reviewed within 2-3 business days
+          <h1 style={{
+            fontSize: '2.5rem',
+            fontWeight: '700',
+            margin: '0 0 0.5rem 0',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
+          }}>
+            Join as a Lawyer
+          </h1>
+          <p style={{
+            color: theme.textSecondary,
+            fontSize: '1.1rem',
+            margin: 0
+          }}>
+            Create your professional lawyer account and start connecting with clients
           </p>
         </div>
-      </form>
+
+        {/* Progress Indicator */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '2rem'
+        }}>
+          {[1, 2, 3].map(step => (
+            <div key={step} style={{
+              display: 'flex',
+              alignItems: 'center'
+            }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: step <= currentStep ? theme.accent : theme.border,
+                color: step <= currentStep ? 'white' : theme.textSecondary,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: '600'
+              }}>
+                {step}
+              </div>
+              {step < 3 && (
+                <div style={{
+                  width: '60px',
+                  height: '2px',
+                  background: step < currentStep ? theme.accent : theme.border,
+                  margin: '0 8px'
+                }} />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Form */}
+        <div style={{
+          background: theme.card,
+          border: `1px solid ${theme.border}`,
+          borderRadius: '12px',
+          padding: '2rem'
+        }}>
+          {/* Messages */}
+          {error && (
+            <div style={{
+              background: `${theme.danger}20`,
+              color: theme.danger,
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              border: `1px solid ${theme.danger}50`
+            }}>
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div style={{
+              background: `${theme.success}20`,
+              color: theme.success,
+              padding: '1rem',
+              borderRadius: '8px',
+              marginBottom: '1rem',
+              border: `1px solid ${theme.success}50`
+            }}>
+              {success}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit}>
+            {renderStep()}
+
+            {/* Navigation Buttons */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              marginTop: '2rem',
+              gap: '1rem'
+            }}>
+              {currentStep > 1 && (
+                <button
+                  type="button"
+                  onClick={prevStep}
+                  style={{
+                    background: 'transparent',
+                    color: theme.text,
+                    border: `1px solid ${theme.border}`,
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Previous
+                </button>
+              )}
+
+              <div style={{ flex: 1 }} />
+
+              {currentStep < 3 ? (
+                <button
+                  type="button"
+                  onClick={nextStep}
+                  style={{
+                    background: theme.accent,
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Next
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={loading}
+                  style={{
+                    background: theme.accent,
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 2rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.7 : 1,
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {loading ? 'Creating Account...' : 'Complete Registration & Login'}
+                </button>
+              )}
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
   );
 };

@@ -12,6 +12,7 @@ const lawyerRoutes = require('./routes/lawyerRoutes');
 const locationRoutes = require('./routes/locationRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const realTimeChatRoutes = require('./routes/realTimeChatRoutes');
+const profileRoutes = require('./routes/ProfileRoutes'); // ✅ ADD THIS
 
 // Import real-time chat service
 const RealTimeChatService = require('./services/realTimeChatService');
@@ -33,7 +34,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Serve uploaded files
+// ✅ UPDATED: Serve uploaded files (including profiles)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
@@ -43,6 +44,7 @@ app.use('/api/lawyers', lawyerRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/real-time-chat', realTimeChatRoutes);
+app.use('/api/profile', profileRoutes); // ✅ ADD THIS
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -79,6 +81,7 @@ server.listen(PORT, () => {
   console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
   console.log(`👨‍💼 Lawyer API: http://localhost:${PORT}/api/lawyers`);
   console.log(`📄 Document API: http://localhost:${PORT}/api/documents`);
+  console.log(`👤 Profile API: http://localhost:${PORT}/api/profile`); // ✅ ADD THIS
   console.log(`🔌 Real-time Chat: http://localhost:${PORT}/api/real-time-chat`);
 });
 
