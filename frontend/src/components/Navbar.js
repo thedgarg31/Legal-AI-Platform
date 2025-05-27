@@ -28,23 +28,23 @@ const Navbar = () => {
         alignItems: 'center',
         height: '70px'
       }}>
-        {/* Logo */}
+        {/* Logo - UPDATED */}
         <Link to="/" style={{
           textDecoration: 'none',
           display: 'flex',
           alignItems: 'center',
-          gap: '12px'
+          gap: '8px'
         }}>
           <div style={{
-            width: '40px',
-            height: '40px',
+            width: '32px',
+            height: '32px',
             background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            borderRadius: '10px',
+            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: 'white',
-            fontSize: '20px',
+            fontSize: '16px',
             fontWeight: 'bold'
           }}>
             ⚖️
@@ -52,8 +52,8 @@ const Navbar = () => {
           <div>
             <h1 style={{
               margin: 0,
-              fontSize: '24px',
-              fontWeight: '700',
+              fontSize: '18px',
+              fontWeight: '600',
               color: theme.text,
               fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif'
             }}>
@@ -61,9 +61,9 @@ const Navbar = () => {
             </h1>
             <p style={{
               margin: 0,
-              fontSize: '12px',
+              fontSize: '10px',
               color: theme.textSecondary,
-              fontWeight: '500'
+              fontWeight: '400'
             }}>
               Professional Legal Platform
             </p>
@@ -86,7 +86,7 @@ const Navbar = () => {
               { path: '/about', label: 'About' },
               { path: '/services', label: 'Services' },
               { path: '/lawyers', label: 'Find Lawyers' },
-              { path: '/document-analysis', label: '📄 Document Analysis' }, // NEW OPTION
+              { path: '/document-analysis', label: '📄 Document Analysis' },
               { path: '/contact', label: 'Contact' }
             ].map(({ path, label }) => (
               <Link
@@ -227,7 +227,7 @@ const Navbar = () => {
             { path: '/about', label: 'About' },
             { path: '/services', label: 'Services' },
             { path: '/lawyers', label: 'Find Lawyers' },
-            { path: '/document-analysis', label: '📄 Document Analysis' }, // NEW OPTION
+            { path: '/document-analysis', label: '📄 Document Analysis' },
             { path: '/contact', label: 'Contact' }
           ].map(({ path, label }) => (
             <Link

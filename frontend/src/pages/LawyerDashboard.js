@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import io from 'socket.io-client';
 import { getLawyerById } from '../api/lawyers';
@@ -20,10 +20,149 @@ const LawyerDashboard = () => {
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
+    let mounted = true;
+    let socketInstance = null;
+
+    const initializeLawyerDashboard = async () => {
+      try {
+        console.log('🔄 Initializing lawyer dashboard for:', lawyerId);
+        
+        const lawyerResult = await getLawyerById(lawyerId);
+        if (lawyerResult.success && mounted) {
+          setLawyer(lawyerResult.lawyer);
+          console.log('✅ Lawyer loaded:', lawyerResult.lawyer.personalInfo.fullName);
+        }
+
+        socketInstance = io('http://localhost:5000', {
+          transports: ['websocket', 'polling'],
+          timeout: 20000,
+          forceNew: true
+        });
+        
+        setSocket(socketInstance);
+
+        socketInstance.on('connect', () => {
+          console.log('✅ Lawyer socket connected:', socketInstance.id);
+          if (mounted) {
+            setIsConnected(true);
+            socketInstance.emit('user_join', { userId: lawyerId, userType: 'lawyer' });
+            console.log('👨‍💼 Joined as lawyer:', lawyerId);
+          }
+        });
+
+        socketInstance.on('connect_error', (error) => {
+          console.error('❌ Socket connection error:', error);
+          if (mounted) setIsConnected(false);
+        });
+
+        socketInstance.on('disconnect', (reason) => {
+          console.log('🔌 Socket disconnected:', reason);
+          if (mounted) setIsConnected(false);
+        });
+
+        // ✅ Remove existing listeners before adding new ones
+        socketInstance.off('receive_message');
+        socketInstance.on('receive_message', (messageData) => {
+          console.log('📥 LAWYER: Received message globally:', messageData);
+          
+          const chatRoomId = messageData.chatRoomId;
+          
+          if (chatRoomId && chatRoomId.includes(lawyerId) && mounted) {
+            console.log('✅ Message is for this lawyer, processing...');
+            
+            setActiveChats(prevChats => {
+              if (!prevChats.includes(chatRoomId)) {
+                console.log('✅ Adding new chat room to UI:', chatRoomId);
+                return [...prevChats, chatRoomId];
+              }
+              return prevChats;
+            });
+
+            setSelectedChatRoom(prevRoom => {
+              if (!prevRoom || prevRoom !== chatRoomId) {
+                console.log('🎯 Auto-selecting chat room:', chatRoomId);
+                setMessages([]);
+                return chatRoomId;
+              }
+              return prevRoom;
+            });
+
+            setMessages(prevMessages => {
+              const exists = prevMessages.some(msg => msg.messageId === messageData.messageId);
+              if (exists) {
+                console.log('⚠️ Duplicate message prevented:', messageData.messageId);
+                return prevMessages;
+              }
+              return [...prevMessages, messageData];
+            });
+
+            // If it's a document notification, refresh documents
+            if (messageData.isDocumentNotification) {
+              fetchDocuments(chatRoomId);
+            }
+          }
+        });
+
+        socketInstance.off('new_chat_room');
+        socketInstance.on('new_chat_room', (data) => {
+          console.log('🔔 New chat room notification:', data);
+          const { chatRoomId } = data;
+          
+          if (mounted) {
+            setActiveChats(prevChats => {
+              if (!prevChats.includes(chatRoomId)) {
+                return [...prevChats, chatRoomId];
+              }
+              return prevChats;
+            });
+            
+            setSelectedChatRoom(prevRoom => {
+              if (!prevRoom) {
+                return chatRoomId;
+              }
+              return prevRoom;
+            });
+          }
+        });
+
+        socketInstance.off('chat_history');
+        socketInstance.on('chat_history', (data) => {
+          console.log('📜 Lawyer loading chat history:', data.messages);
+          if (mounted) setMessages(data.messages || []);
+        });
+
+        socketInstance.off('user_typing');
+        socketInstance.on('user_typing', (data) => {
+          console.log('⌨️ Client typing:', data);
+          if (mounted) setIsTyping(data.isTyping);
+        });
+
+        socketInstance.off('user_joined_chat');
+        socketInstance.on('user_joined_chat', (data) => {
+          console.log('👋 User joined chat:', data);
+        });
+
+      } catch (error) {
+        console.error('❌ Error initializing lawyer dashboard:', error);
+      }
+    };
+
     initializeLawyerDashboard();
+
+    // ✅ CLEANUP: Remove all listeners and disconnect socket
     return () => {
-      if (socket) {
-        socket.disconnect();
+      mounted = false;
+      if (socketInstance) {
+        socketInstance.off('connect');
+        socketInstance.off('connect_error');
+        socketInstance.off('disconnect');
+        socketInstance.off('receive_message');
+        socketInstance.off('new_chat_room');
+        socketInstance.off('chat_history');
+        socketInstance.off('user_typing');
+        socketInstance.off('user_joined_chat');
+        socketInstance.disconnect();
+        console.log('🧹 Lawyer socket cleaned up and disconnected');
       }
     };
   }, [lawyerId]);
@@ -58,116 +197,6 @@ const LawyerDashboard = () => {
     }
   };
 
-  const initializeLawyerDashboard = async () => {
-    try {
-      console.log('🔄 Initializing lawyer dashboard for:', lawyerId);
-      
-      const lawyerResult = await getLawyerById(lawyerId);
-      if (lawyerResult.success) {
-        setLawyer(lawyerResult.lawyer);
-        console.log('✅ Lawyer loaded:', lawyerResult.lawyer.personalInfo.fullName);
-      }
-
-      const newSocket = io('http://localhost:5000', {
-        transports: ['websocket', 'polling'],
-        timeout: 20000,
-        forceNew: true
-      });
-      
-      setSocket(newSocket);
-
-      newSocket.on('connect', () => {
-        console.log('✅ Lawyer socket connected:', newSocket.id);
-        setIsConnected(true);
-        newSocket.emit('user_join', { userId: lawyerId, userType: 'lawyer' });
-        console.log('👨‍💼 Joined as lawyer:', lawyerId);
-      });
-
-      newSocket.on('connect_error', (error) => {
-        console.error('❌ Socket connection error:', error);
-        setIsConnected(false);
-      });
-
-      newSocket.on('disconnect', (reason) => {
-        console.log('🔌 Socket disconnected:', reason);
-        setIsConnected(false);
-      });
-
-      newSocket.on('receive_message', (messageData) => {
-        console.log('📥 LAWYER: Received message globally:', messageData);
-        
-        const chatRoomId = messageData.chatRoomId;
-        
-        if (chatRoomId && chatRoomId.includes(lawyerId)) {
-          console.log('✅ Message is for this lawyer, processing...');
-          
-          setActiveChats(prevChats => {
-            if (!prevChats.includes(chatRoomId)) {
-              console.log('✅ Adding new chat room to UI:', chatRoomId);
-              return [...prevChats, chatRoomId];
-            }
-            return prevChats;
-          });
-
-          setSelectedChatRoom(prevRoom => {
-            if (!prevRoom || prevRoom !== chatRoomId) {
-              console.log('🎯 Auto-selecting chat room:', chatRoomId);
-              setMessages([]);
-              return chatRoomId;
-            }
-            return prevRoom;
-          });
-
-          setMessages(prevMessages => {
-            const exists = prevMessages.some(msg => msg.messageId === messageData.messageId);
-            return exists ? prevMessages : [...prevMessages, messageData];
-          });
-
-          // If it's a document notification, refresh documents
-          if (messageData.isDocumentNotification) {
-            fetchDocuments(chatRoomId);
-          }
-        }
-      });
-
-      newSocket.on('new_chat_room', (data) => {
-        console.log('🔔 New chat room notification:', data);
-        const { chatRoomId } = data;
-        
-        setActiveChats(prevChats => {
-          if (!prevChats.includes(chatRoomId)) {
-            return [...prevChats, chatRoomId];
-          }
-          return prevChats;
-        });
-        
-        setSelectedChatRoom(prevRoom => {
-          if (!prevRoom) {
-            return chatRoomId;
-          }
-          return prevRoom;
-        });
-      });
-
-      newSocket.on('chat_history', (data) => {
-        console.log('📜 Lawyer loading chat history:', data.messages);
-        setMessages(data.messages || []);
-      });
-
-      newSocket.on('user_typing', (data) => {
-        console.log('⌨️ Client typing:', data);
-        setIsTyping(data.isTyping);
-      });
-
-      newSocket.on('user_joined_chat', (data) => {
-        console.log('👋 User joined chat:', data);
-      });
-
-    } catch (error) {
-      console.error('❌ Error initializing lawyer dashboard:', error);
-    }
-  };
-
   const joinChatRoom = (chatRoomId) => {
     console.log('🔄 Lawyer manually joining chat room:', chatRoomId);
     if (socket && isConnected) {
@@ -180,29 +209,35 @@ const LawyerDashboard = () => {
     }
   };
 
-  const sendMessage = () => {
+  const sendMessage = useCallback(() => {
     if (currentMessage.trim() && socket && selectedChatRoom && isConnected) {
       const messageData = {
         chatRoomId: selectedChatRoom,
         message: currentMessage,
         senderId: lawyerId,
         senderType: 'lawyer',
-        messageId: Date.now().toString(),
+        messageId: `${Date.now()}_${lawyerId}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date()
       };
       
       console.log('📤 Lawyer sending message:', messageData);
       
-      // CRITICAL FIX: Add message to UI immediately (optimistic update)
-      setMessages(prevMessages => [...prevMessages, messageData]);
+      // Clear input immediately
+      setCurrentMessage('');
+      
+      // Add message to UI immediately (optimistic update)
+      setMessages(prevMessages => {
+        const exists = prevMessages.some(msg => msg.messageId === messageData.messageId);
+        if (exists) return prevMessages;
+        return [...prevMessages, messageData];
+      });
       
       // Send to server
       socket.emit('send_message', messageData);
-      setCurrentMessage('');
     }
-  };
+  }, [currentMessage, socket, selectedChatRoom, isConnected, lawyerId]);
 
-  const handleTyping = (typing) => {
+  const handleTyping = useCallback((typing) => {
     if (socket && selectedChatRoom && isConnected) {
       socket.emit('typing', { 
         chatRoomId: selectedChatRoom, 
@@ -210,7 +245,7 @@ const LawyerDashboard = () => {
         isTyping: typing 
       });
     }
-  };
+  }, [socket, selectedChatRoom, isConnected, lawyerId]);
 
   const getClientIdFromRoom = (chatRoomId) => {
     const parts = chatRoomId.split('_');
@@ -225,19 +260,6 @@ const LawyerDashboard = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Debug logging for state changes
-  useEffect(() => {
-    console.log('🔍 DEBUG: activeChats state changed:', activeChats);
-  }, [activeChats]);
-
-  useEffect(() => {
-    console.log('🔍 DEBUG: messages state changed:', messages.length, 'messages');
-  }, [messages]);
-
-  useEffect(() => {
-    console.log('🔍 DEBUG: selectedChatRoom state changed:', selectedChatRoom);
-  }, [selectedChatRoom]);
 
   return (
     <div style={{ 

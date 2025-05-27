@@ -127,51 +127,39 @@ const DocumentAnalysisPage = () => {
       fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif',
       color: theme.text
     }}>
-      {/* Hero Section */}
+      {/* Main Content - NO HERO SECTION */}
       <section style={{
-        background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`,
-        padding: '80px 0',
-        textAlign: 'center'
+        padding: '2rem 0',
+        background: theme.primary,
+        minHeight: '100vh'
       }}>
         <div style={{
           maxWidth: '1200px',
           margin: '0 auto',
           padding: '0 2rem'
         }}>
-          <h1 style={{
-            fontSize: '3.5rem',
-            fontWeight: '700',
-            marginBottom: '1.5rem',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text'
+          {/* Simple title at the top */}
+          <div style={{
+            textAlign: 'center',
+            marginBottom: '2rem'
           }}>
-            🤖 AI Legal Document Assistant
-          </h1>
-          <p style={{
-            fontSize: '1.25rem',
-            color: theme.textSecondary,
-            marginBottom: '3rem',
-            maxWidth: '600px',
-            margin: '0 auto 3rem auto',
-            lineHeight: '1.6'
-          }}>
-            Upload your legal documents, get instant AI analysis, and chat with our AI assistant about your document.
-          </p>
-        </div>
-      </section>
+            <h1 style={{
+              fontSize: '2rem',
+              fontWeight: '600',
+              color: theme.text,
+              margin: '0 0 0.5rem 0'
+            }}>
+              🤖 AI Legal Document Assistant
+            </h1>
+            <p style={{
+              color: theme.textSecondary,
+              fontSize: '1rem',
+              margin: 0
+            }}>
+              Upload your legal documents and chat with our AI assistant
+            </p>
+          </div>
 
-      {/* Main Content */}
-      <section style={{
-        padding: '60px 0',
-        background: theme.secondary
-      }}>
-        <div style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          padding: '0 2rem'
-        }}>
           <div style={{
             display: 'grid',
             gridTemplateColumns: documents.length > 0 ? '1fr 1fr' : '1fr',
@@ -240,6 +228,12 @@ const DocumentAnalysisPage = () => {
                         fontWeight: '600',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.background = theme.accentHover;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.background = theme.accent;
                       }}
                     >
                       📤 Upload Another

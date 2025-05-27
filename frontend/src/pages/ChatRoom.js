@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import io from 'socket.io-client';
 import { getLawyerById } from '../api/lawyers';
@@ -24,79 +24,111 @@ const ChatRoom = () => {
   const clientId = 'client_' + Date.now();
 
   useEffect(() => {
+    let mounted = true;
+    let socketInstance = null;
+
+    const initializeChat = async () => {
+      try {
+        console.log('🔄 Initializing chat with lawyer:', lawyerId);
+        
+        const lawyerResult = await getLawyerById(lawyerId);
+        if (lawyerResult.success && mounted) {
+          setLawyer(lawyerResult.lawyer);
+          console.log('✅ Lawyer details loaded:', lawyerResult.lawyer.personalInfo.fullName);
+        }
+
+        const chatResult = await createChatRoom({ lawyerId, clientId });
+        if (chatResult.success && mounted) {
+          const roomId = chatResult.chatRoom.chatRoomId;
+          setChatRoomId(roomId);
+          console.log('✅ Chat room created/found:', roomId);
+
+          // Create socket connection only once
+          socketInstance = io('http://localhost:5000', {
+            forceNew: true, // Force new connection
+            transports: ['websocket', 'polling']
+          });
+          
+          setSocket(socketInstance);
+
+          // Set up event listeners only once
+          socketInstance.on('connect', () => {
+            console.log('✅ Client socket connected:', socketInstance.id);
+            if (mounted) {
+              setIsConnected(true);
+              socketInstance.emit('user_join', { userId: clientId, userType: 'client' });
+              socketInstance.emit('join_chat', { lawyerId, clientId, chatRoomId: roomId });
+            }
+          });
+
+          socketInstance.on('connect_error', (error) => {
+            console.error('❌ Socket connection error:', error);
+            if (mounted) setIsConnected(false);
+          });
+
+          socketInstance.on('disconnect', (reason) => {
+            console.log('🔌 Socket disconnected:', reason);
+            if (mounted) setIsConnected(false);
+          });
+
+          // ✅ CRITICAL: Remove existing listeners before adding new ones
+          socketInstance.off('receive_message');
+          socketInstance.on('receive_message', (messageData) => {
+            console.log('📥 Received message:', messageData);
+            if (mounted) {
+              setMessages(prev => {
+                const exists = prev.some(msg => msg.messageId === messageData.messageId);
+                if (exists) {
+                  console.log('⚠️ Duplicate message prevented:', messageData.messageId);
+                  return prev;
+                }
+                return [...prev, messageData];
+              });
+            }
+          });
+
+          socketInstance.off('chat_history');
+          socketInstance.on('chat_history', (data) => {
+            console.log('📜 Loading chat history:', data.messages);
+            if (mounted) setMessages(data.messages || []);
+          });
+
+          socketInstance.off('user_typing');
+          socketInstance.on('user_typing', (data) => {
+            console.log('⌨️ Typing indicator:', data);
+            if (mounted) setIsTyping(data.isTyping);
+          });
+
+          socketInstance.off('user_joined_chat');
+          socketInstance.on('user_joined_chat', (data) => {
+            console.log('👋 User joined chat:', data);
+          });
+        }
+      } catch (error) {
+        console.error('❌ Error initializing chat:', error);
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    };
+
     initializeChat();
+
+    // ✅ CLEANUP: Remove all listeners and disconnect socket
     return () => {
-      if (socket) {
-        socket.disconnect();
+      mounted = false;
+      if (socketInstance) {
+        socketInstance.off('connect');
+        socketInstance.off('connect_error');
+        socketInstance.off('disconnect');
+        socketInstance.off('receive_message');
+        socketInstance.off('chat_history');
+        socketInstance.off('user_typing');
+        socketInstance.off('user_joined_chat');
+        socketInstance.disconnect();
+        console.log('🧹 Socket cleaned up and disconnected');
       }
     };
   }, [lawyerId]);
-
-  const initializeChat = async () => {
-    try {
-      console.log('🔄 Initializing chat with lawyer:', lawyerId);
-      
-      const lawyerResult = await getLawyerById(lawyerId);
-      if (lawyerResult.success) {
-        setLawyer(lawyerResult.lawyer);
-        console.log('✅ Lawyer details loaded:', lawyerResult.lawyer.personalInfo.fullName);
-      }
-
-      const chatResult = await createChatRoom({ lawyerId, clientId });
-      if (chatResult.success) {
-        const roomId = chatResult.chatRoom.chatRoomId;
-        setChatRoomId(roomId);
-        console.log('✅ Chat room created/found:', roomId);
-
-        const newSocket = io('http://localhost:5000');
-        setSocket(newSocket);
-
-        newSocket.on('connect', () => {
-          console.log('✅ Client socket connected:', newSocket.id);
-          setIsConnected(true);
-          newSocket.emit('user_join', { userId: clientId, userType: 'client' });
-          newSocket.emit('join_chat', { lawyerId, clientId, chatRoomId: roomId });
-        });
-
-        newSocket.on('connect_error', (error) => {
-          console.error('❌ Socket connection error:', error);
-          setIsConnected(false);
-        });
-
-        newSocket.on('disconnect', (reason) => {
-          console.log('🔌 Socket disconnected:', reason);
-          setIsConnected(false);
-        });
-
-        newSocket.on('receive_message', (messageData) => {
-          console.log('📥 Received message:', messageData);
-          setMessages(prev => {
-            const exists = prev.some(msg => msg.messageId === messageData.messageId);
-            if (exists) return prev;
-            return [...prev, messageData];
-          });
-        });
-
-        newSocket.on('chat_history', (data) => {
-          console.log('📜 Loading chat history:', data.messages);
-          setMessages(data.messages || []);
-        });
-
-        newSocket.on('user_typing', (data) => {
-          console.log('⌨️ Typing indicator:', data);
-          setIsTyping(data.isTyping);
-        });
-
-        newSocket.on('user_joined_chat', (data) => {
-          console.log('👋 User joined chat:', data);
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error initializing chat:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDocumentUpload = (document) => {
     console.log('📄 Document uploaded:', document);
@@ -110,7 +142,7 @@ const ChatRoom = () => {
         message: `📄 Document uploaded: ${document.originalName}`,
         senderId: clientId,
         senderType: 'client',
-        messageId: Date.now().toString(),
+        messageId: `${Date.now()}_${clientId}_doc_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date(),
         isDocumentNotification: true,
         documentId: document.id
@@ -124,29 +156,35 @@ const ChatRoom = () => {
     }
   };
 
-  const sendMessage = () => {
-    if (currentMessage.trim() && socket && chatRoomId) {
+  const sendMessage = useCallback(() => {
+    if (currentMessage.trim() && socket && chatRoomId && isConnected) {
       const messageData = {
         chatRoomId,
         message: currentMessage,
         senderId: clientId,
         senderType: 'client',
-        messageId: Date.now().toString(),
+        messageId: `${Date.now()}_${clientId}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: new Date()
       };
       
       console.log('📤 Sending message:', messageData);
       
-      // Add message to UI immediately (optimistic update)
-      setMessages(prev => [...prev, messageData]);
+      // Clear input immediately
+      setCurrentMessage('');
+      
+      // Add to UI immediately (optimistic update)
+      setMessages(prev => {
+        const exists = prev.some(msg => msg.messageId === messageData.messageId);
+        if (exists) return prev;
+        return [...prev, messageData];
+      });
       
       // Send to server
       socket.emit('send_message', messageData);
-      setCurrentMessage('');
     }
-  };
+  }, [currentMessage, socket, chatRoomId, isConnected, clientId]);
 
-  const handleTyping = (typing) => {
+  const handleTyping = useCallback((typing) => {
     if (socket && chatRoomId) {
       socket.emit('typing', {
         chatRoomId,
@@ -154,8 +192,9 @@ const ChatRoom = () => {
         isTyping: typing
       });
     }
-  };
+  }, [socket, chatRoomId, clientId]);
 
+  // ✅ SEPARATE useEffect for scrolling
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
