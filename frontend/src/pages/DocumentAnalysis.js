@@ -1,348 +1,451 @@
 import React, { useState } from 'react';
-import { analyzeDocument } from '../api/documents';
+import { useTheme } from '../context/ThemeContext';
+import DocumentUpload from '../components/DocumentUpload';
+import DocumentAnalysis from '../components/DocumentAnalysis';
 
-const DocumentAnalysis = () => {
-  const [analysis, setAnalysis] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadedFileName, setUploadedFileName] = useState('');
+const DocumentAnalysisPage = () => {
+  const { theme } = useTheme();
+  const [documents, setDocuments] = useState([]);
+  const [showUpload, setShowUpload] = useState(true);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [currentMessage, setCurrentMessage] = useState('');
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState(null);
 
-  const handleFileUpload = async (file) => {
-    if (!file || file.type !== 'application/pdf') {
-      alert('Please upload a PDF file only.');
-      return;
-    }
-
-    setLoading(true);
-    setUploadedFileName(file.name);
+  const handleDocumentUpload = (document) => {
+    console.log('📄 Document uploaded:', document);
+    setDocuments(prev => [document, ...prev]);
+    setSelectedDocument(document);
+    setShowUpload(false);
     
+    // Add welcome message from AI
+    const welcomeMessage = {
+      id: Date.now(),
+      type: 'ai',
+      message: `Hello! I've analyzed your document "${document.originalName}". I found it's a ${document.analysis.documentType} with ${document.analysis.riskLevel} risk level. Feel free to ask me any questions about your document!`,
+      timestamp: new Date()
+    };
+    setChatMessages([welcomeMessage]);
+  };
+
+  const sendMessageToAI = async () => {
+    if (!currentMessage.trim() || !selectedDocument) return;
+
+    const userMessage = {
+      id: Date.now(),
+      type: 'user',
+      message: currentMessage,
+      timestamp: new Date()
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setCurrentMessage('');
+    setIsAiTyping(true);
+
     try {
-      const result = await analyzeDocument(file);
+      // Send message to AI backend
+      const response = await fetch('http://localhost:5000/api/documents/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: currentMessage,
+          documentId: selectedDocument.id,
+          documentAnalysis: selectedDocument.analysis,
+          documentText: selectedDocument.extractedText || ''
+        })
+      });
+
+      const result = await response.json();
+
       if (result.success) {
-        setAnalysis(result.analysis);
-        console.log('Analysis completed:', result);
+        const aiMessage = {
+          id: Date.now() + 1,
+          type: 'ai',
+          message: result.response,
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, aiMessage]);
+      } else {
+        throw new Error(result.message || 'AI response failed');
       }
     } catch (error) {
-      console.error('Analysis failed:', error);
-      alert('Failed to analyze document. Please try again.');
+      console.error('❌ AI chat error:', error);
+      const errorMessage = {
+        id: Date.now() + 1,
+        type: 'ai',
+        message: 'Sorry, I encountered an error. Please try asking your question again.',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
     } finally {
-      setLoading(false);
+      setIsAiTyping(false);
     }
   };
 
-  const handleDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
+  const getSuggestedQuestions = () => {
+    if (!selectedDocument) return [];
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileUpload(e.dataTransfer.files[0]);
-    }
-  };
+    const docType = selectedDocument.analysis.documentType;
+    const riskLevel = selectedDocument.analysis.riskLevel;
+    
+    const suggestions = {
+      'contract': [
+        'What are the key obligations for each party?',
+        'What happens if someone breaches this contract?',
+        'Can this contract be terminated early?',
+        'What are the payment terms?'
+      ],
+      'lease': [
+        'What are my rights as a tenant?',
+        'What maintenance responsibilities do I have?',
+        'Can the rent be increased during the lease term?',
+        'What happens if I need to move out early?'
+      ],
+      'employment': [
+        'What benefits am I entitled to?',
+        'What are the termination conditions?',
+        'Are there any non-compete clauses?',
+        'What is the notice period required?'
+      ],
+      'general': [
+        'What are the main legal risks in this document?',
+        'What should I be most careful about?',
+        'Are there any missing clauses I should consider?',
+        'What would a lawyer recommend?'
+      ]
+    };
 
-  const handleFileInput = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      handleFileUpload(e.target.files[0]);
-    }
+    return suggestions[docType] || suggestions['general'];
   };
 
   return (
-    <div style={{ 
-      padding: '2rem', 
-      maxWidth: '1200px', 
-      margin: '0 auto',
-      background: '#ffffff',
-      minHeight: '100vh'
+    <div style={{
+      background: theme.primary,
+      minHeight: '100vh',
+      fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif',
+      color: theme.text
     }}>
-      <div className="fade-in-up">
-        <h1 className="gradient-text" style={{ fontSize: '2.5rem', marginBottom: '1rem', textAlign: 'center' }}>
-          <span className="ai-badge" style={{ marginRight: '12px' }}>AI</span>
-          Legal Document Analysis
-        </h1>
-        <p style={{ textAlign: 'center', color: '#6c757d', marginBottom: '3rem', fontSize: '1.1rem' }}>
-          Upload your legal document and get a comprehensive analysis from our AI lawyer
-        </p>
-      </div>
-
-      {/* File Upload Area */}
-      <div 
-        className={`card ${dragActive ? 'drag-active' : ''}`}
-        style={{ 
-          marginBottom: '2rem',
-          border: dragActive ? '2px dashed #666FD0' : '2px dashed #e9ecef',
-          background: dragActive ? 'rgba(102, 111, 208, 0.05)' : '#ffffff',
-          textAlign: 'center',
-          padding: '3rem',
-          cursor: 'pointer',
-          transition: 'all 0.3s ease',
-          borderRadius: '12px',
-          boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
-        }}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        onClick={() => document.getElementById('file-input').click()}
-      >
-        <input
-          id="file-input"
-          type="file"
-          accept="application/pdf"
-          onChange={handleFileInput}
-          style={{ display: 'none' }}
-          disabled={loading}
-        />
-        
-        {loading ? (
-          <div>
-            <div className="loading-spinner" style={{ margin: '0 auto 1rem auto' }}></div>
-            <h3 className="gradient-text">Analyzing Document...</h3>
-            <p style={{ color: '#6c757d' }}>Our AI lawyer is reading your contract...</p>
-          </div>
-        ) : (
-          <div>
-            <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-              {dragActive ? '📂' : '📄'}
-            </div>
-            <h3 className="gradient-text">
-              {dragActive ? 'Drop PDF Here!' : 'Drop PDF Here or Click to Upload'}
-            </h3>
-            <p style={{ color: '#6c757d' }}>
-              {dragActive ? 'Release to upload your document' : 'Get a professional legal analysis in seconds'}
-            </p>
-            {uploadedFileName && (
-              <p style={{ color: '#666FD0', marginTop: '1rem', fontWeight: 'bold' }}>
-                📎 Last uploaded: {uploadedFileName}
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Legal Analysis Results */}
-      {analysis && (
-        <div className="fade-in-up">
-          {/* Document Overview */}
-          <div className="card" style={{ 
-            marginBottom: '2rem',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+      {/* Hero Section */}
+      <section style={{
+        background: `linear-gradient(135deg, ${theme.primary} 0%, ${theme.secondary} 100%)`,
+        padding: '80px 0',
+        textAlign: 'center'
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          padding: '0 2rem'
+        }}>
+          <h1 style={{
+            fontSize: '3.5rem',
+            fontWeight: '700',
+            marginBottom: '1.5rem',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text'
           }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              📋 Document Overview
-            </h3>
-            <div style={{ 
-              padding: '1.5rem',
-              background: 'rgba(102, 111, 208, 0.05)',
-              borderRadius: '8px',
-              border: '1px solid rgba(102, 111, 208, 0.2)',
-              marginBottom: '1rem'
-            }}>
-              <h4 style={{ color: '#666FD0', marginBottom: '1rem' }}>📄 {uploadedFileName}</h4>
-              <p style={{ color: '#0E0F22', lineHeight: '1.6', margin: 0 }}>
-                {analysis.documentSummary.overview}
-              </p>
-            </div>
-          </div>
-
-          {/* What This Document Does */}
-          <div className="card" style={{ 
-            marginBottom: '2rem',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+            🤖 AI Legal Document Assistant
+          </h1>
+          <p style={{
+            fontSize: '1.25rem',
+            color: theme.textSecondary,
+            marginBottom: '3rem',
+            maxWidth: '600px',
+            margin: '0 auto 3rem auto',
+            lineHeight: '1.6'
           }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              🎯 What This Document Does
-            </h3>
-            <div style={{ 
-              padding: '1.5rem',
-              background: '#f8f9fa',
-              borderRadius: '8px',
-              border: '1px solid #e9ecef'
-            }}>
-              <p style={{ color: '#0E0F22', lineHeight: '1.8', fontSize: '1.1rem', margin: 0 }}>
-                {analysis.documentSummary.purpose}
-              </p>
-            </div>
-          </div>
+            Upload your legal documents, get instant AI analysis, and chat with our AI assistant about your document.
+          </p>
+        </div>
+      </section>
 
-          {/* Key Terms Explained */}
-          <div className="card" style={{ 
-            marginBottom: '2rem',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
+      {/* Main Content */}
+      <section style={{
+        padding: '60px 0',
+        background: theme.secondary
+      }}>
+        <div style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          padding: '0 2rem'
+        }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: documents.length > 0 ? '1fr 1fr' : '1fr',
+            gap: '2rem',
+            alignItems: 'start'
           }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              🔑 Key Terms Explained (In Simple Language)
-            </h3>
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {analysis.documentSummary.keyTerms.map((term, index) => (
-                <div key={index} style={{
-                  padding: '1.5rem',
-                  background: '#f8f9fa',
-                  borderRadius: '8px',
-                  border: '1px solid #e9ecef'
+            {/* Left Column - Upload & Analysis */}
+            <div>
+              {/* Upload Section */}
+              {showUpload && (
+                <div style={{
+                  background: theme.card,
+                  borderRadius: '16px',
+                  padding: '2rem',
+                  marginBottom: '2rem',
+                  border: `1px solid ${theme.border}`
                 }}>
-                  <h4 style={{ color: '#666FD0', marginBottom: '0.5rem' }}>{term.title}</h4>
-                  <p style={{ color: '#0E0F22', lineHeight: '1.6', margin: 0 }}>
-                    {term.explanation}
+                  <h2 style={{
+                    fontSize: '1.5rem',
+                    fontWeight: '600',
+                    marginBottom: '1rem',
+                    color: theme.text,
+                    textAlign: 'center'
+                  }}>
+                    Upload Your Legal Document
+                  </h2>
+                  <p style={{
+                    color: theme.textSecondary,
+                    textAlign: 'center',
+                    marginBottom: '2rem'
+                  }}>
+                    Supported formats: PDF files up to 10MB
+                  </p>
+                  
+                  <DocumentUpload onUploadSuccess={handleDocumentUpload} />
+                </div>
+              )}
+
+              {/* Analysis Results */}
+              {documents.length > 0 && (
+                <div>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '2rem'
+                  }}>
+                    <h2 style={{
+                      fontSize: '1.5rem',
+                      fontWeight: '600',
+                      color: theme.text,
+                      margin: 0
+                    }}>
+                      📄 Analysis Results
+                    </h2>
+                    
+                    <button
+                      onClick={() => setShowUpload(true)}
+                      style={{
+                        background: theme.accent,
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '8px',
+                        fontSize: '0.9rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      📤 Upload Another
+                    </button>
+                  </div>
+
+                  {documents.map((doc, index) => (
+                    <div key={doc.id || index} style={{ marginBottom: '2rem' }}>
+                      <DocumentAnalysis document={doc} />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right Column - AI Chat */}
+            {selectedDocument && (
+              <div style={{
+                background: theme.card,
+                borderRadius: '16px',
+                border: `1px solid ${theme.border}`,
+                height: '600px',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                {/* Chat Header */}
+                <div style={{
+                  padding: '1.5rem',
+                  borderBottom: `1px solid ${theme.border}`,
+                  background: theme.accent,
+                  borderRadius: '16px 16px 0 0',
+                  color: 'white'
+                }}>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '600' }}>
+                    🤖 AI Legal Assistant
+                  </h3>
+                  <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', opacity: 0.9 }}>
+                    Ask questions about "{selectedDocument.originalName}"
                   </p>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* Potential Risks & Red Flags */}
-          <div className="card" style={{ 
-            marginBottom: '2rem',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              ⚠️ Potential Risks & Red Flags
-            </h3>
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {analysis.documentSummary.risks.map((risk, index) => (
-                <div key={index} style={{
-                  padding: '1.5rem',
-                  background: 'rgba(244, 67, 54, 0.05)',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(244, 67, 54, 0.2)',
-                  borderLeft: '4px solid #f44336'
+                {/* Chat Messages */}
+                <div style={{
+                  flex: 1,
+                  overflow: 'auto',
+                  padding: '1rem'
                 }}>
-                  <h4 style={{ color: '#f44336', marginBottom: '0.5rem' }}>🚨 {risk.title}</h4>
-                  <p style={{ color: '#0E0F22', lineHeight: '1.6', marginBottom: '1rem' }}>
-                    {risk.description}
-                  </p>
-                  <div style={{ 
-                    background: 'rgba(244, 67, 54, 0.1)',
-                    padding: '0.8rem',
-                    borderRadius: '4px',
-                    fontSize: '0.9rem'
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id} style={{
+                      marginBottom: '1rem',
+                      display: 'flex',
+                      justifyContent: msg.type === 'user' ? 'flex-end' : 'flex-start'
+                    }}>
+                      <div style={{
+                        maxWidth: '80%',
+                        padding: '0.75rem 1rem',
+                        borderRadius: msg.type === 'user' ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                        background: msg.type === 'user' ? theme.accent : theme.tertiary,
+                        color: msg.type === 'user' ? 'white' : theme.text
+                      }}>
+                        <div style={{ fontSize: '0.9rem', lineHeight: '1.4' }}>
+                          {msg.message}
+                        </div>
+                        <div style={{
+                          fontSize: '0.7rem',
+                          opacity: 0.7,
+                          marginTop: '0.25rem',
+                          textAlign: 'right'
+                        }}>
+                          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {isAiTyping && (
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'flex-start',
+                      marginBottom: '1rem'
+                    }}>
+                      <div style={{
+                        padding: '0.75rem 1rem',
+                        borderRadius: '18px 18px 18px 4px',
+                        background: theme.tertiary,
+                        color: theme.text
+                      }}>
+                        <div style={{ fontSize: '0.9rem' }}>🤖 AI is thinking...</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Suggested Questions */}
+                {chatMessages.length === 1 && (
+                  <div style={{
+                    padding: '1rem',
+                    borderTop: `1px solid ${theme.border}`,
+                    background: theme.secondary
                   }}>
-                    <strong style={{ color: '#f44336' }}>💡 What you should do:</strong>
-                    <span style={{ color: '#0E0F22' }}> {risk.recommendation}</span>
+                    <p style={{
+                      fontSize: '0.8rem',
+                      color: theme.textSecondary,
+                      margin: '0 0 0.5rem 0',
+                      fontWeight: '600'
+                    }}>
+                      💡 Suggested questions:
+                    </p>
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '0.5rem'
+                    }}>
+                      {getSuggestedQuestions().slice(0, 3).map((question, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentMessage(question)}
+                          style={{
+                            background: 'transparent',
+                            border: `1px solid ${theme.border}`,
+                            borderRadius: '12px',
+                            padding: '0.25rem 0.5rem',
+                            fontSize: '0.7rem',
+                            color: theme.textSecondary,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.background = theme.accent;
+                            e.target.style.color = 'white';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = 'transparent';
+                            e.target.style.color = theme.textSecondary;
+                          }}
+                        >
+                          {question}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chat Input */}
+                <div style={{
+                  padding: '1rem',
+                  borderTop: `1px solid ${theme.border}`
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    gap: '0.5rem',
+                    alignItems: 'flex-end'
+                  }}>
+                    <textarea
+                      value={currentMessage}
+                      onChange={(e) => setCurrentMessage(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessageToAI();
+                        }
+                      }}
+                      placeholder="Ask me anything about your document..."
+                      rows={2}
+                      style={{
+                        flex: 1,
+                        padding: '0.75rem',
+                        border: `1px solid ${theme.border}`,
+                        borderRadius: '12px',
+                        fontSize: '0.9rem',
+                        fontFamily: 'inherit',
+                        background: theme.primary,
+                        color: theme.text,
+                        outline: 'none',
+                        resize: 'none'
+                      }}
+                    />
+                    <button
+                      onClick={sendMessageToAI}
+                      disabled={!currentMessage.trim() || isAiTyping}
+                      style={{
+                        background: currentMessage.trim() && !isAiTyping ? theme.accent : theme.tertiary,
+                        color: currentMessage.trim() && !isAiTyping ? 'white' : theme.textSecondary,
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '40px',
+                        height: '40px',
+                        cursor: currentMessage.trim() && !isAiTyping ? 'pointer' : 'not-allowed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.2rem',
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      ➤
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Your Rights & Protections */}
-          <div className="card" style={{ 
-            marginBottom: '2rem',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              🛡️ Your Rights & Protections
-            </h3>
-            <div style={{ display: 'grid', gap: '1rem' }}>
-              {analysis.documentSummary.protections.map((protection, index) => (
-                <div key={index} style={{
-                  padding: '1.5rem',
-                  background: 'rgba(76, 175, 80, 0.05)',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(76, 175, 80, 0.2)',
-                  borderLeft: '4px solid #4caf50'
-                }}>
-                  <h4 style={{ color: '#4caf50', marginBottom: '0.5rem' }}>✅ {protection.title}</h4>
-                  <p style={{ color: '#0E0F22', lineHeight: '1.6', margin: 0 }}>
-                    {protection.description}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Lawyer's Recommendations */}
-          <div className="card" style={{ 
-            marginBottom: '2rem',
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              👨‍💼 AI Lawyer's Recommendations
-            </h3>
-            <div style={{
-              padding: '2rem',
-              background: 'rgba(102, 111, 208, 0.05)',
-              borderRadius: '8px',
-              border: '1px solid rgba(102, 111, 208, 0.2)'
-            }}>
-              <h4 style={{ color: '#666FD0', marginBottom: '1rem' }}>📝 Before You Sign:</h4>
-              <ul style={{ color: '#0E0F22', lineHeight: '1.8', paddingLeft: '1.5rem' }}>
-                {analysis.documentSummary.recommendations.map((rec, index) => (
-                  <li key={index} style={{ marginBottom: '0.5rem' }}>{rec}</li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Overall Assessment */}
-          <div className="card" style={{ 
-            background: '#ffffff',
-            borderRadius: '12px',
-            border: '1px solid #e9ecef',
-            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.1)'
-          }}>
-            <h3 className="gradient-text" style={{ fontSize: '1.8rem', marginBottom: '1.5rem' }}>
-              🎯 Overall Assessment
-            </h3>
-            <div style={{
-              padding: '2rem',
-              background: analysis.documentSummary.overallRisk === 'HIGH' ? 'rgba(244, 67, 54, 0.05)' : 
-                          analysis.documentSummary.overallRisk === 'MEDIUM' ? 'rgba(255, 152, 0, 0.05)' : 
-                          'rgba(76, 175, 80, 0.05)',
-              borderRadius: '8px',
-              border: `1px solid ${analysis.documentSummary.overallRisk === 'HIGH' ? 'rgba(244, 67, 54, 0.2)' : 
-                                   analysis.documentSummary.overallRisk === 'MEDIUM' ? 'rgba(255, 152, 0, 0.2)' : 
-                                   'rgba(76, 175, 80, 0.2)'}`,
-              textAlign: 'center'
-            }}>
-              <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>
-                {analysis.documentSummary.overallRisk === 'HIGH' ? '🚨' : 
-                 analysis.documentSummary.overallRisk === 'MEDIUM' ? '⚠️' : '✅'}
               </div>
-              <h4 style={{ 
-                color: analysis.documentSummary.overallRisk === 'HIGH' ? '#f44336' : 
-                       analysis.documentSummary.overallRisk === 'MEDIUM' ? '#ff9800' : '#4caf50',
-                marginBottom: '1rem',
-                fontSize: '1.5rem'
-              }}>
-                {analysis.documentSummary.overallRisk} RISK LEVEL
-              </h4>
-              <p style={{ color: '#0E0F22', lineHeight: '1.8', fontSize: '1.1rem', margin: 0 }}>
-                {analysis.documentSummary.finalAdvice}
-              </p>
-            </div>
+            )}
           </div>
         </div>
-      )}
+      </section>
     </div>
   );
 };
 
-export default DocumentAnalysis;
+export default DocumentAnalysisPage;

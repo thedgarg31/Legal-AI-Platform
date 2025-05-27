@@ -1,47 +1,67 @@
 const mongoose = require('mongoose');
 
 const documentSchema = new mongoose.Schema({
-    title: {
-        type: String,
-        required: [true, 'Document title is required'],
+  filename: {
+    type: String,
+    required: true
+  },
+  originalName: {
+    type: String,
+    required: true
+  },
+  fileSize: {
+    type: Number,
+    required: true
+  },
+  mimeType: {
+    type: String,
+    required: true
+  },
+  uploadedBy: {
+    type: String,
+    required: true
+  },
+  userType: {
+    type: String,
+    enum: ['client', 'lawyer'],
+    required: true
+  },
+  lawyerId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Lawyer',
+    required: false  // ✅ CHANGED: Made optional for standalone uploads
+  },
+  chatRoomId: {
+    type: String,
+    required: false  // ✅ CHANGED: Made optional for standalone uploads
+  },
+  extractedText: {
+    type: String
+  },
+  analysis: {
+    documentType: String,
+    keyPoints: [String],
+    legalIssues: [String],
+    recommendations: [String],
+    riskLevel: {
+      type: String,
+      enum: ['Low', 'Medium', 'High']
     },
-    description: String,
-    fileUrl: {
-        type: String,
-        required: [true, 'File URL is required'],
-    },
-    fileType: {
-        type: String,
-        required: [true, 'File type is required'],
-    },
-    uploadedBy: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
-        required: true,
-    },
-    analysis: {
-        summary: String,
-        keyTerms: [String],
-        riskFactors: [String],
-        parties: [String],
-        dates: [Date],
-        highlightedSections: [{
-            text: String,
-            color: String, // 'red' or 'green'
-            page: Number,
-            position: Object,
-        }],
-    },
-    uploadDate: {
-        type: Date,
-        default: Date.now,
-    },
-    tags: [String],
-    isPublic: {
-        type: Boolean,
-        default: false,
-    },
+    summary: String,
+    confidence: Number
+  },
+  status: {
+    type: String,
+    enum: ['uploaded', 'processing', 'analyzed', 'error'],
+    default: 'uploaded'
+  },
+  uploadDate: {
+    type: Date,
+    default: Date.now
+  },
+  analysisDate: {
+    type: Date
+  }
 });
 
-const Document = mongoose.model('Document', documentSchema);
-module.exports = Document;
+module.exports = mongoose.model('Document', documentSchema);

@@ -1,6 +1,6 @@
 import React from 'react';
-import { useAuth } from '../../context/AuthContext';
-import Login from '../../pages/Login';
+import { useAuth } from '../context/AuthContext';
+import Login from '../pages/Login';
 
 const PrivateRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();

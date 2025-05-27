@@ -3,9 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import io from 'socket.io-client';
 import { getLawyerById } from '../api/lawyers';
 import { createChatRoom } from '../api/realTimeChat';
+import { useTheme } from '../context/ThemeContext';
+import DocumentUpload from '../components/DocumentUpload';
+import DocumentAnalysis from '../components/DocumentAnalysis';
 
 const ChatRoom = () => {
   const { lawyerId } = useParams();
+  const { theme } = useTheme();
   const [socket, setSocket] = useState(null);
   const [lawyer, setLawyer] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -13,8 +17,9 @@ const ChatRoom = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [loading, setLoading] = useState(true);
   const [chatRoomId, setChatRoomId] = useState('');
-  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isConnected, setIsConnected] = useState(false);
+  const [documents, setDocuments] = useState([]);
+  const [showDocumentUpload, setShowDocumentUpload] = useState(false);
   const messagesEndRef = useRef(null);
   const clientId = 'client_' + Date.now();
 
@@ -93,16 +98,49 @@ const ChatRoom = () => {
     }
   };
 
+  const handleDocumentUpload = (document) => {
+    console.log('📄 Document uploaded:', document);
+    setDocuments(prev => [document, ...prev]);
+    setShowDocumentUpload(false);
+    
+    // Send notification message to chat
+    if (socket && chatRoomId) {
+      const notificationMessage = {
+        chatRoomId,
+        message: `📄 Document uploaded: ${document.originalName}`,
+        senderId: clientId,
+        senderType: 'client',
+        messageId: Date.now().toString(),
+        timestamp: new Date(),
+        isDocumentNotification: true,
+        documentId: document.id
+      };
+      
+      // Add to UI immediately
+      setMessages(prev => [...prev, notificationMessage]);
+      
+      // Send to server
+      socket.emit('send_message', notificationMessage);
+    }
+  };
+
   const sendMessage = () => {
     if (currentMessage.trim() && socket && chatRoomId) {
       const messageData = {
         chatRoomId,
         message: currentMessage,
         senderId: clientId,
-        senderType: 'client'
+        senderType: 'client',
+        messageId: Date.now().toString(),
+        timestamp: new Date()
       };
       
       console.log('📤 Sending message:', messageData);
+      
+      // Add message to UI immediately (optimistic update)
+      setMessages(prev => [...prev, messageData]);
+      
+      // Send to server
       socket.emit('send_message', messageData);
       setCurrentMessage('');
     }
@@ -122,50 +160,10 @@ const ChatRoom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Theme colors (same as lawyer dashboard)
-  const theme = {
-    dark: {
-      primary: '#1a1a1a',
-      secondary: '#2d2d30',
-      tertiary: '#3e3e42',
-      accent: '#007acc',
-      accentHover: '#106ebe',
-      text: '#cccccc',
-      textSecondary: '#969696',
-      border: '#464647',
-      success: '#4caf50',
-      danger: '#f44336',
-      warning: '#ff9800',
-      messageOwn: '#007acc',
-      messageOther: '#3e3e42',
-      sidebar: '#252526',
-      header: '#2d2d30'
-    },
-    light: {
-      primary: '#ffffff',
-      secondary: '#f8f9fa',
-      tertiary: '#e9ecef',
-      accent: '#0066cc',
-      accentHover: '#0052a3',
-      text: '#212529',
-      textSecondary: '#6c757d',
-      border: '#dee2e6',
-      success: '#28a745',
-      danger: '#dc3545',
-      warning: '#ffc107',
-      messageOwn: '#0066cc',
-      messageOther: '#e9ecef',
-      sidebar: '#f8f9fa',
-      header: '#ffffff'
-    }
-  };
-
-  const currentTheme = isDarkMode ? theme.dark : theme.light;
-
   if (loading) {
     return (
       <div style={{ 
-        background: currentTheme.primary,
+        background: theme.primary,
         minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
@@ -174,22 +172,22 @@ const ChatRoom = () => {
       }}>
         <div style={{ 
           textAlign: 'center',
-          background: currentTheme.secondary,
+          background: theme.secondary,
           padding: '3rem',
           borderRadius: '12px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          border: `1px solid ${currentTheme.border}`
+          border: `1px solid ${theme.border}`
         }}>
           <div style={{ 
             width: '40px', 
             height: '40px', 
-            border: `4px solid ${currentTheme.border}`,
-            borderTop: `4px solid ${currentTheme.accent}`,
+            border: `4px solid ${theme.border}`,
+            borderTop: `4px solid ${theme.accent}`,
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
             margin: '0 auto 1rem auto'
           }}></div>
-          <p style={{ color: currentTheme.text, fontSize: '1.1rem', fontWeight: '500', margin: 0 }}>
+          <p style={{ color: theme.text, fontSize: '1.1rem', fontWeight: '500', margin: 0 }}>
             Connecting to lawyer...
           </p>
         </div>
@@ -199,15 +197,15 @@ const ChatRoom = () => {
 
   return (
     <div style={{ 
-      background: currentTheme.primary,
+      background: theme.primary,
       minHeight: '100vh',
       fontFamily: '"Segoe UI", system-ui, -apple-system, sans-serif',
-      color: currentTheme.text
+      color: theme.text
     }}>
       {/* Top Navigation Bar */}
       <div style={{
-        background: currentTheme.header,
-        borderBottom: `1px solid ${currentTheme.border}`,
+        background: theme.header,
+        borderBottom: `1px solid ${theme.border}`,
         padding: '0 24px',
         height: '60px',
         display: 'flex',
@@ -220,7 +218,7 @@ const ChatRoom = () => {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <Link to="/lawyers" style={{ 
-            color: currentTheme.text, 
+            color: theme.text, 
             textDecoration: 'none',
             fontSize: '14px',
             fontWeight: '500',
@@ -229,7 +227,7 @@ const ChatRoom = () => {
             gap: '8px',
             padding: '8px 12px',
             borderRadius: '6px',
-            border: `1px solid ${currentTheme.border}`,
+            border: `1px solid ${theme.border}`,
             transition: 'all 0.2s ease'
           }}>
             ← Back to Lawyers
@@ -254,14 +252,14 @@ const ChatRoom = () => {
               margin: 0, 
               fontSize: '20px', 
               fontWeight: '600',
-              color: currentTheme.text
+              color: theme.text
             }}>
               LegalChat Pro
             </h1>
             <p style={{ 
               margin: 0, 
               fontSize: '14px', 
-              color: currentTheme.textSecondary
+              color: theme.textSecondary
             }}>
               Client Portal
             </p>
@@ -277,38 +275,22 @@ const ChatRoom = () => {
             padding: '6px 12px',
             borderRadius: '16px',
             background: isConnected ? 'rgba(76, 175, 80, 0.1)' : 'rgba(244, 67, 54, 0.1)',
-            border: `1px solid ${isConnected ? currentTheme.success : currentTheme.danger}`
+            border: `1px solid ${isConnected ? theme.success : theme.danger}`
           }}>
             <div style={{
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              background: isConnected ? currentTheme.success : currentTheme.danger
+              background: isConnected ? theme.success : theme.danger
             }} />
             <span style={{ 
               fontSize: '12px', 
               fontWeight: '500',
-              color: isConnected ? currentTheme.success : currentTheme.danger
+              color: isConnected ? theme.success : theme.danger
             }}>
               {isConnected ? 'Connected' : 'Disconnected'}
             </span>
           </div>
-
-          {/* Theme Toggle */}
-          <button
-            onClick={() => setIsDarkMode(!isDarkMode)}
-            style={{
-              background: 'none',
-              border: `1px solid ${currentTheme.border}`,
-              borderRadius: '6px',
-              padding: '8px',
-              cursor: 'pointer',
-              color: currentTheme.text,
-              fontSize: '16px'
-            }}
-          >
-            {isDarkMode ? '☀️' : '🌙'}
-          </button>
         </div>
       </div>
 
@@ -323,8 +305,8 @@ const ChatRoom = () => {
         {/* Chat Header */}
         <div style={{
           padding: '20px 24px',
-          borderBottom: `1px solid ${currentTheme.border}`,
-          background: currentTheme.secondary
+          borderBottom: `1px solid ${theme.border}`,
+          background: theme.secondary
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{
@@ -342,13 +324,13 @@ const ChatRoom = () => {
               color: 'white',
               fontSize: '24px',
               fontWeight: 'bold',
-              border: `3px solid ${currentTheme.border}`
+              border: `3px solid ${theme.border}`
             }}>
               {!lawyer?.personalInfo.profilePhoto && lawyer?.personalInfo.fullName?.charAt(0)}
             </div>
             <div style={{ flex: 1 }}>
               <h2 style={{ 
-                color: currentTheme.text, 
+                color: theme.text, 
                 margin: 0, 
                 fontSize: '20px', 
                 fontWeight: '600',
@@ -358,7 +340,7 @@ const ChatRoom = () => {
               </h2>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <span style={{ 
-                  color: currentTheme.textSecondary, 
+                  color: theme.textSecondary, 
                   fontSize: '14px',
                   display: 'flex',
                   alignItems: 'center',
@@ -370,13 +352,13 @@ const ChatRoom = () => {
                     <>⚫ Offline</>
                   )}
                 </span>
-                <span style={{ color: currentTheme.textSecondary, fontSize: '14px' }}>•</span>
-                <span style={{ color: currentTheme.textSecondary, fontSize: '14px' }}>
+                <span style={{ color: theme.textSecondary, fontSize: '14px' }}>•</span>
+                <span style={{ color: theme.textSecondary, fontSize: '14px' }}>
                   {lawyer?.credentials.specializations?.[0]}
                 </span>
-                <span style={{ color: currentTheme.textSecondary, fontSize: '14px' }}>•</span>
+                <span style={{ color: theme.textSecondary, fontSize: '14px' }}>•</span>
                 <span style={{ 
-                  color: currentTheme.accent, 
+                  color: theme.accent, 
                   fontSize: '14px',
                   fontWeight: '600'
                 }}>
@@ -387,12 +369,86 @@ const ChatRoom = () => {
           </div>
         </div>
 
+        {/* Document Upload Section */}
+        <div style={{
+          padding: '1rem 24px',
+          borderBottom: `1px solid ${theme.border}`,
+          background: theme.secondary
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            maxWidth: '800px',
+            margin: '0 auto'
+          }}>
+            <h4 style={{
+              color: theme.text,
+              margin: 0,
+              fontSize: '1rem',
+              fontWeight: '600'
+            }}>
+              📄 Document Analysis
+            </h4>
+            
+            <button
+              onClick={() => setShowDocumentUpload(!showDocumentUpload)}
+              style={{
+                background: theme.accent,
+                color: 'white',
+                border: 'none',
+                padding: '0.5rem 1rem',
+                borderRadius: '6px',
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.target.style.background = theme.accentHover;
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.background = theme.accent;
+              }}
+            >
+              {showDocumentUpload ? '✕ Cancel' : '📤 Upload PDF'}
+            </button>
+          </div>
+          
+          {showDocumentUpload && (
+            <div style={{
+              maxWidth: '800px',
+              margin: '1rem auto 0 auto'
+            }}>
+              <DocumentUpload
+                onUploadSuccess={handleDocumentUpload}
+                uploadedBy={clientId}
+                userType="client"
+                lawyerId={lawyerId}
+                chatRoomId={chatRoomId}
+              />
+            </div>
+          )}
+          
+          {/* Show uploaded documents */}
+          {documents.length > 0 && (
+            <div style={{
+              maxWidth: '800px',
+              margin: '1rem auto 0 auto'
+            }}>
+              {documents.map((doc, index) => (
+                <DocumentAnalysis key={doc.id || index} document={doc} />
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Messages Area */}
         <div style={{
           flex: 1,
           overflow: 'auto',
           padding: '24px',
-          background: currentTheme.primary
+          background: theme.primary
         }}>
           {messages.length === 0 ? (
             <div style={{
@@ -401,14 +457,14 @@ const ChatRoom = () => {
               justifyContent: 'center',
               height: '100%',
               textAlign: 'center',
-              color: currentTheme.textSecondary
+              color: theme.textSecondary
             }}>
               <div>
                 <div style={{ fontSize: '64px', marginBottom: '16px', opacity: 0.3 }}>💬</div>
                 <h3 style={{ 
                   margin: '0 0 8px 0', 
                   fontSize: '18px',
-                  color: currentTheme.text
+                  color: theme.text
                 }}>
                   Start Your Legal Consultation
                 </h3>
@@ -438,11 +494,11 @@ const ChatRoom = () => {
                       width: '32px',
                       height: '32px',
                       borderRadius: '50%',
-                      background: message.senderType === 'client' ? currentTheme.accent : currentTheme.tertiary,
+                      background: message.senderType === 'client' ? theme.accent : theme.tertiary,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      color: message.senderType === 'client' ? 'white' : currentTheme.text,
+                      color: message.senderType === 'client' ? 'white' : theme.text,
                       fontSize: '14px',
                       fontWeight: '600',
                       flexShrink: 0
@@ -452,12 +508,21 @@ const ChatRoom = () => {
 
                     {/* Message Bubble */}
                     <div style={{
-                      background: message.senderType === 'client' ? currentTheme.messageOwn : currentTheme.messageOther,
-                      color: message.senderType === 'client' ? 'white' : currentTheme.text,
+                      background: message.isDocumentNotification 
+                        ? `${theme.accent}20` 
+                        : message.senderType === 'client' 
+                          ? theme.messageOwn 
+                          : theme.messageOther,
+                      color: message.isDocumentNotification 
+                        ? theme.accent 
+                        : message.senderType === 'client' 
+                          ? 'white' 
+                          : theme.text,
                       padding: '12px 16px',
                       borderRadius: '18px',
                       boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-                      position: 'relative'
+                      position: 'relative',
+                      border: message.isDocumentNotification ? `1px solid ${theme.accent}50` : 'none'
                     }}>
                       {/* Sender Name */}
                       <div style={{
@@ -508,7 +573,7 @@ const ChatRoom = () => {
                     width: '32px',
                     height: '32px',
                     borderRadius: '50%',
-                    background: currentTheme.tertiary,
+                    background: theme.tertiary,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -517,8 +582,8 @@ const ChatRoom = () => {
                     ⚖️
                   </div>
                   <div style={{
-                    background: currentTheme.messageOther,
-                    color: currentTheme.text,
+                    background: theme.messageOther,
+                    color: theme.text,
                     padding: '12px 16px',
                     borderRadius: '18px',
                     fontSize: '14px',
@@ -536,8 +601,8 @@ const ChatRoom = () => {
         {/* Message Input */}
         <div style={{
           padding: '20px 24px',
-          borderTop: `1px solid ${currentTheme.border}`,
-          background: currentTheme.secondary
+          borderTop: `1px solid ${theme.border}`,
+          background: theme.secondary
         }}>
           <div style={{
             display: 'flex',
@@ -564,24 +629,24 @@ const ChatRoom = () => {
                   minHeight: '44px',
                   maxHeight: '120px',
                   padding: '12px 16px',
-                  border: `1px solid ${currentTheme.border}`,
+                  border: `1px solid ${theme.border}`,
                   borderRadius: '22px',
                   fontSize: '14px',
                   fontFamily: 'inherit',
-                  background: currentTheme.primary,
-                  color: currentTheme.text,
+                  background: theme.primary,
+                  color: theme.text,
                   outline: 'none',
                   resize: 'none',
                   transition: 'border-color 0.2s ease'
                 }}
                 onFocus={(e) => {
                   if (isConnected) {
-                    e.target.style.borderColor = currentTheme.accent;
+                    e.target.style.borderColor = theme.accent;
                     handleTyping(true);
                   }
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = currentTheme.border;
+                  e.target.style.borderColor = theme.border;
                   handleTyping(false);
                 }}
               />
@@ -595,8 +660,8 @@ const ChatRoom = () => {
                 height: '44px',
                 borderRadius: '50%',
                 border: 'none',
-                background: (currentMessage.trim() && isConnected) ? currentTheme.accent : currentTheme.tertiary,
-                color: (currentMessage.trim() && isConnected) ? 'white' : currentTheme.textSecondary,
+                background: (currentMessage.trim() && isConnected) ? theme.accent : theme.tertiary,
+                color: (currentMessage.trim() && isConnected) ? 'white' : theme.textSecondary,
                 cursor: (currentMessage.trim() && isConnected) ? 'pointer' : 'not-allowed',
                 display: 'flex',
                 alignItems: 'center',
@@ -607,13 +672,13 @@ const ChatRoom = () => {
               }}
               onMouseEnter={(e) => {
                 if (currentMessage.trim() && isConnected) {
-                  e.target.style.background = currentTheme.accentHover;
+                  e.target.style.background = theme.accentHover;
                   e.target.style.transform = 'scale(1.05)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (currentMessage.trim() && isConnected) {
-                  e.target.style.background = currentTheme.accent;
+                  e.target.style.background = theme.accent;
                   e.target.style.transform = 'scale(1)';
                 }
               }}
@@ -656,16 +721,16 @@ const ChatRoom = () => {
         }
 
         ::-webkit-scrollbar-track {
-          background: ${currentTheme.secondary};
+          background: ${theme.secondary};
         }
 
         ::-webkit-scrollbar-thumb {
-          background: ${currentTheme.border};
+          background: ${theme.border};
           border-radius: 3px;
         }
 
         ::-webkit-scrollbar-thumb:hover {
-          background: ${currentTheme.textSecondary};
+          background: ${theme.textSecondary};
         }
 
         textarea::-webkit-scrollbar {
