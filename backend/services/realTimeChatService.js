@@ -1,6 +1,8 @@
 const socketIo = require('socket.io');
 const cors = require('cors');
 const Lawyer = require('../models/Lawyer');
+const User = require('../models/User');
+const ChatRoom = require('../models/ChatRoom');
 
 class RealTimeChatService {
   constructor(server) {
@@ -21,25 +23,25 @@ class RealTimeChatService {
 
   setupSocketHandlers() {
     this.io.on('connection', (socket) => {
-      console.log('🔌 User connected:', socket.id);
+      console.log('User connected:', socket.id);
 
       socket.on('user_join', (data) => {
-        console.log('🔍 Socket event received: user_join', [data]);
+        console.log('Socket event received: user_join', [data]);
         
         if (data && data.userId && data.userType) {
           this.handleUserJoin(socket, data);
         } else {
-          console.log('❌ Invalid user_join data:', data);
+          console.log('Invalid user_join data:', data);
         }
       });
 
       socket.on('join_chat', (data) => {
-        console.log('💬 Join chat request:', data);
+        console.log('Join chat request:', data);
         this.handleJoinChat(socket, data);
       });
 
       socket.on('send_message', (messageData) => {
-        console.log('📤 Message received from client:', messageData);
+        console.log('Message received from client:', messageData);
         this.handleSendMessage(socket, messageData);
       });
 
@@ -48,7 +50,7 @@ class RealTimeChatService {
       });
 
       socket.on('disconnect', (reason) => {
-        console.log('🔌 User disconnected:', socket.id, 'Reason:', reason);
+        console.log('User disconnected:', socket.id, 'Reason:', reason);
         this.handleUserDisconnect(socket);
       });
     });
@@ -70,7 +72,7 @@ class RealTimeChatService {
         joinedAt: new Date()
       });
 
-      console.log(`👤 ${userType} ${userName || userId} joined`);
+      console.log(`${userType} ${userName || userId} joined`);
 
       if (userType === 'lawyer') {
         await this.updateLawyerOnlineStatus(userId, true);
@@ -79,21 +81,21 @@ class RealTimeChatService {
       socket.join(`user_${userId}`);
 
     } catch (error) {
-      console.error('❌ Error in handleUserJoin:', error);
+      console.error('Error in handleUserJoin:', error);
     }
   }
 
-  handleJoinChat(socket, data) {
+  async handleJoinChat(socket, data) {
     try {
       const { lawyerId, clientId, chatRoomId } = data;
       
       if (!chatRoomId) {
-        console.log('❌ No chatRoomId provided');
+        console.log('No chatRoomId provided');
         return;
       }
 
       socket.join(chatRoomId);
-      console.log(`💬 User ${socket.userId} (${socket.userName}) joined chat room: ${chatRoomId}`);
+      console.log(`User ${socket.userId} (${socket.userName}) joined chat room: ${chatRoomId}`);
 
       if (!this.chatRooms.has(chatRoomId)) {
         this.chatRooms.set(chatRoomId, {
@@ -103,6 +105,25 @@ class RealTimeChatService {
           createdAt: new Date(),
           messages: []
         });
+
+        // Save to database
+        try {
+          await ChatRoom.findOneAndUpdate(
+            { chatRoomId },
+            {
+              chatRoomId,
+              lawyerId,
+              clientId,
+              participants: [lawyerId, clientId],
+              lastMessage: '',
+              isActive: true
+            },
+            { upsert: true, new: true }
+          );
+          console.log('Chat room saved to database:', chatRoomId);
+        } catch (error) {
+          console.error('Error saving chat room to database:', error);
+        }
       }
 
       const chatRoom = this.chatRooms.get(chatRoomId);
@@ -130,21 +151,21 @@ class RealTimeChatService {
       }
 
     } catch (error) {
-      console.error('❌ Error in handleJoinChat:', error);
+      console.error('Error in handleJoinChat:', error);
     }
   }
 
-  handleSendMessage(socket, messageData) {
+  async handleSendMessage(socket, messageData) {
     try {
       const { chatRoomId, message, messageId, senderName } = messageData;
 
       if (!chatRoomId || !message || !messageId) {
-        console.log('❌ Invalid message data:', messageData);
+        console.log('Invalid message data:', messageData);
         return;
       }
 
       if (this.recentMessages.has(messageId)) {
-        console.log('⚠️ Duplicate message prevented on server:', messageId);
+        console.log('Duplicate message prevented on server:', messageId);
         return;
       }
 
@@ -170,7 +191,7 @@ class RealTimeChatService {
         }
       }
 
-      console.log(`📨 Broadcasting message from ${enrichedMessage.senderName} to room:`, chatRoomId);
+      console.log(`Broadcasting message from ${enrichedMessage.senderName} to room:`, chatRoomId);
 
       this.io.to(chatRoomId).emit('receive_message', enrichedMessage);
 
@@ -179,8 +200,22 @@ class RealTimeChatService {
         this.io.to(`user_${chatRoom.lawyerId}`).emit('receive_message', enrichedMessage);
       }
 
+      // Update database with last message
+      try {
+        await ChatRoom.findOneAndUpdate(
+          { chatRoomId },
+          {
+            lastMessage: enrichedMessage.message,
+            lastMessageTime: new Date()
+          }
+        );
+        console.log('Last message updated in database');
+      } catch (error) {
+        console.error('Error updating last message:', error);
+      }
+
     } catch (error) {
-      console.error('❌ Error in handleSendMessage:', error);
+      console.error('Error in handleSendMessage:', error);
     }
   }
 
@@ -198,7 +233,7 @@ class RealTimeChatService {
       });
 
     } catch (error) {
-      console.error('❌ Error in handleTyping:', error);
+      console.error('Error in handleTyping:', error);
     }
   }
 
@@ -215,11 +250,11 @@ class RealTimeChatService {
 
         this.connectedUsers.delete(socket.id);
         
-        console.log(`👤 ${userType} ${userName || userId} disconnected`);
+        console.log(`${userType} ${userName || userId} disconnected`);
       }
 
     } catch (error) {
-      console.error('❌ Error in handleUserDisconnect:', error);
+      console.error('Error in handleUserDisconnect:', error);
     }
   }
 
@@ -231,10 +266,10 @@ class RealTimeChatService {
         { new: true }
       );
       
-      console.log(`👨‍💼 Lawyer ${lawyerId} is now ${isOnline ? 'online' : 'offline'}`);
+      console.log(`Lawyer ${lawyerId} is now ${isOnline ? 'online' : 'offline'}`);
       
     } catch (error) {
-      console.error('❌ Error updating lawyer status:', error);
+      console.error('Error updating lawyer status:', error);
     }
   }
 
@@ -259,7 +294,7 @@ class RealTimeChatService {
     setInterval(() => {
       if (this.recentMessages.size > 50) {
         this.recentMessages.clear();
-        console.log('🧹 Cleaned up recent messages cache');
+        console.log('Cleaned up recent messages cache');
       }
     }, 5 * 60 * 1000);
   }

@@ -32,6 +32,7 @@ export const AuthProvider = ({ children }) => {
             const data = await response.json();
             setUser(data.user);
             setToken(storedToken);
+            console.log('✅ Auth initialized:', data.user);
           } else {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
@@ -50,6 +51,8 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
+      console.log('🔄 Attempting login for:', email);
+      
       const response = await fetch('http://localhost:5000/api/auth/login', {
         method: 'POST',
         headers: {
@@ -61,23 +64,27 @@ export const AuthProvider = ({ children }) => {
       const data = await response.json();
 
       if (data.success) {
+        console.log('✅ Login successful:', data.user);
+        
         setUser(data.user);
         setToken(data.token);
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         
-        // ✅ AUTO-REDIRECT LAWYERS TO THEIR DASHBOARD
-        if (data.user.isLawyer && data.user.lawyerId) {
-          localStorage.setItem('redirectAfterLogin', `/lawyer-dashboard/${data.user.lawyerId}`);
-          console.log('🔄 Lawyer login detected, will redirect to dashboard:', data.user.lawyerId);
-        }
-        
-        return { success: true, user: data.user };
+        return { 
+          success: true, 
+          user: data.user,
+          // ✅ DYNAMIC: Use actual user's lawyer ID
+          shouldRedirect: data.user.isLawyer && data.user.lawyerId,
+          redirectPath: data.user.isLawyer && data.user.lawyerId 
+            ? `/lawyer-dashboard/${data.user.lawyerId}` 
+            : null
+        };
       } else {
         return { success: false, message: data.message };
       }
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('❌ Login error:', error);
       return { success: false, message: 'Network error' };
     }
   };

@@ -16,6 +16,9 @@ const chatRoomSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  participants: [{
+    type: String
+  }],
   lastMessage: {
     type: String,
     default: ''

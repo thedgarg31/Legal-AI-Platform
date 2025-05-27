@@ -14,75 +14,82 @@ const isValidEmail = (email) => {
 };
 
 // Regular User Registration
-router.post('/register', [
-  body('name')
-    .notEmpty()
-    .withMessage('Name is required')
-    .trim()
-    .isLength({ min: 2, max: 50 })
-    .withMessage('Name must be between 2 and 50 characters'),
-  
-  body('email')
-    .isEmail()
-    .withMessage('Please provide a valid email address')
-    .normalizeEmail()
-    .trim(),
-  
-  body('password')
-    .isLength({ min: 6 })
-    .withMessage('Password must be at least 6 characters long')
-], async (req, res) => {
+// ✅ DYNAMIC: Enhanced lawyer registration for ANY lawyer
+router.post('/register-lawyer', async (req, res) => {
   try {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
+    const { personalInfo, credentials, availability, practiceAreas } = req.body;
+
+    if (!personalInfo?.fullName || !personalInfo?.email || !personalInfo?.password) {
       return res.status(400).json({ 
         success: false, 
-        message: errors.array()[0].msg,
-        errors: errors.array()
+        message: 'Please provide all required fields' 
       });
     }
 
-    const { name, email, password } = req.body;
-
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
+    const existingUser = await User.findOne({ email: personalInfo.email });
     if (existingUser) {
       return res.status(400).json({ 
         success: false, 
-        message: 'User already exists with this email' 
+        message: 'A user account already exists with this email.' 
       });
     }
 
-    // Check if lawyer exists with this email
-    const existingLawyer = await Lawyer.findOne({ 'personalInfo.email': email });
+    // Check if lawyer already exists
+    const existingLawyer = await Lawyer.findOne({ 'personalInfo.email': personalInfo.email });
     if (existingLawyer) {
       return res.status(400).json({ 
         success: false, 
-        message: 'A lawyer account already exists with this email. Please use the lawyer login.' 
+        message: 'Lawyer already exists with this email' 
       });
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(personalInfo.password, 12);
 
-    // Create user
-    const user = new User({ 
-      name, 
-      email, 
-      password: hashedPassword,
-      userType: 'client'
+    // ✅ DYNAMIC: Create lawyer record
+    const lawyer = new Lawyer({
+      personalInfo: {
+        ...personalInfo,
+        password: hashedPassword
+      },
+      credentials: credentials || {
+        specializations: ['General Law'],
+        experience: 0
+      },
+      availability: availability || { 
+        isOnline: true,
+        consultationFees: 2000
+      },
+      practiceAreas: practiceAreas || []
     });
-    
+
+    await lawyer.save();
+
+    // ✅ DYNAMIC: Create User record linked to lawyer
+    const user = new User({
+      name: personalInfo.fullName,
+      email: personalInfo.email,
+      password: hashedPassword,
+      userType: 'lawyer',
+      lawyerId: lawyer._id, // ✅ Automatically linked
+      profile: {
+        firstName: personalInfo.fullName.split(' ')[0],
+        lastName: personalInfo.fullName.split(' ').slice(1).join(' '),
+        phone: personalInfo.phone
+      }
+    });
+
     await user.save();
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user._id, userType: 'client' }, 
+      { id: user._id, userType: 'lawyer', lawyerId: lawyer._id }, 
       process.env.JWT_SECRET || 'your-secret-key', 
       { expiresIn: '7d' }
     );
 
-    console.log('✅ Client registered:', user.name);
+    console.log('✅ New lawyer registered:', lawyer.personalInfo.fullName, 'ID:', lawyer._id);
 
     res.status(201).json({
       success: true,
@@ -91,20 +98,28 @@ router.post('/register', [
         id: user._id, 
         name: user.name, 
         email: user.email,
-        userType: 'client',
+        userType: 'lawyer',
         profile: user.profile,
-        isLawyer: false
-      }
+        isLawyer: true,
+        lawyerId: lawyer._id.toString(), // ✅ Dynamic lawyer ID
+        lawyerInfo: {
+          specializations: lawyer.credentials.specializations,
+          experience: lawyer.credentials.experience,
+          consultationFees: lawyer.availability.consultationFees
+        }
+      },
+      message: 'Lawyer account created successfully'
     });
 
   } catch (error) {
-    console.error('❌ Register error:', error);
+    console.error('❌ Lawyer register error:', error);
     res.status(500).json({ 
       success: false, 
-      message: 'Server error during registration' 
+      message: 'Server error during lawyer registration' 
     });
   }
 });
+
 
 // Lawyer Registration (Join as Lawyer)
 router.post('/register-lawyer', async (req, res) => {
@@ -165,6 +180,7 @@ router.post('/register-lawyer', async (req, res) => {
       email: personalInfo.email,
       password: hashedPassword,
       userType: 'lawyer',
+      lawyerId: lawyer._id, // ✅ Link to lawyer record
       profile: {
         firstName: personalInfo.fullName.split(' ')[0],
         lastName: personalInfo.fullName.split(' ').slice(1).join(' '),
@@ -193,7 +209,7 @@ router.post('/register-lawyer', async (req, res) => {
         userType: 'lawyer',
         profile: user.profile,
         isLawyer: true,
-        lawyerId: lawyer._id,
+        lawyerId: lawyer._id.toString(),
         lawyerInfo: {
           specializations: lawyer.credentials.specializations,
           experience: lawyer.credentials.experience,
@@ -212,7 +228,7 @@ router.post('/register-lawyer', async (req, res) => {
   }
 });
 
-// Unified Login
+// ✅ DYNAMIC: Unified Login with proper lawyer ID handling
 router.post('/login', [
   body('email')
     .isEmail()
@@ -234,45 +250,10 @@ router.post('/login', [
 
     const { email, password } = req.body;
 
-    // First check User collection
+    // Find user in User collection
     let user = await User.findOne({ email });
     let isLawyer = false;
     let lawyerInfo = null;
-
-    if (!user) {
-      // Check Lawyer collection for backward compatibility
-      const lawyer = await Lawyer.findOne({ 'personalInfo.email': email });
-      if (lawyer) {
-        // Create User record if lawyer exists but no User record
-        const hashedPassword = lawyer.personalInfo.password;
-        user = new User({
-          name: lawyer.personalInfo.fullName,
-          email: lawyer.personalInfo.email,
-          password: hashedPassword,
-          userType: 'lawyer'
-        });
-        await user.save();
-        isLawyer = true;
-        lawyerInfo = {
-          lawyerId: lawyer._id,
-          specializations: lawyer.credentials.specializations,
-          experience: lawyer.credentials.experience,
-          consultationFees: lawyer.availability.consultationFees
-        };
-      }
-    } else if (user.userType === 'lawyer') {
-      // Get lawyer info if user is a lawyer
-      const lawyer = await Lawyer.findOne({ 'personalInfo.email': email });
-      if (lawyer) {
-        isLawyer = true;
-        lawyerInfo = {
-          lawyerId: lawyer._id,
-          specializations: lawyer.credentials.specializations,
-          experience: lawyer.credentials.experience,
-          consultationFees: lawyer.availability.consultationFees
-        };
-      }
-    }
 
     if (!user) {
       return res.status(400).json({ 
@@ -290,17 +271,43 @@ router.post('/login', [
       });
     }
 
-    // Update online status
+    // ✅ DYNAMIC: Check if user is a lawyer and get lawyer info
+    if (user.userType === 'lawyer') {
+      isLawyer = true;
+      
+      // Try to get lawyer info from user.lawyerId first
+      let lawyer = null;
+      if (user.lawyerId) {
+        lawyer = await Lawyer.findById(user.lawyerId);
+      } else {
+        // Fallback: find by email
+        lawyer = await Lawyer.findOne({ 'personalInfo.email': email });
+        if (lawyer) {
+          // Update user record with lawyer ID for future use
+          user.lawyerId = lawyer._id;
+          await user.save();
+        }
+      }
+
+      if (lawyer) {
+        lawyerInfo = {
+          lawyerId: lawyer._id.toString(),
+          specializations: lawyer.credentials?.specializations || [],
+          experience: lawyer.credentials?.experience || 0,
+          consultationFees: lawyer.availability?.consultationFees || 0
+        };
+        
+        // Update lawyer online status
+        await Lawyer.findByIdAndUpdate(lawyer._id, {
+          'availability.isOnline': true
+        });
+      }
+    }
+
+    // Update user online status
     user.isOnline = true;
     user.lastSeen = new Date();
     await user.save();
-
-    // Update lawyer online status if applicable
-    if (isLawyer && lawyerInfo) {
-      await Lawyer.findByIdAndUpdate(lawyerInfo.lawyerId, {
-        'availability.isOnline': true
-      });
-    }
 
     // Generate JWT token
     const tokenPayload = { 
@@ -318,29 +325,35 @@ router.post('/login', [
     );
 
     console.log('✅ User logged in:', user.name, isLawyer ? '(Lawyer)' : '(Client)');
+    if (isLawyer && lawyerInfo) {
+      console.log('✅ Dynamic Lawyer ID:', lawyerInfo.lawyerId);
+    }
+    
+    // ✅ DYNAMIC: Response with proper lawyer data
+    const responseUser = { 
+      id: user._id, 
+      name: user.name, 
+      email: user.email,
+      userType: user.userType,
+      profile: user.profile,
+      isLawyer: isLawyer
+    };
 
-    // In the login route, find the res.json section and replace with:
-res.json({
-  success: true,
-  token,
-  user: { 
-    id: user._id, 
-    name: user.name, 
-    email: user.email,
-    userType: user.userType,
-    profile: user.profile,
-    isLawyer: isLawyer,
-    ...(lawyerInfo && { 
-      lawyerId: lawyerInfo.lawyerId,  // ✅ ENSURE THIS IS INCLUDED
-      lawyerInfo: {
+    // ✅ Add lawyer-specific data
+    if (isLawyer && lawyerInfo) {
+      responseUser.lawyerId = lawyerInfo.lawyerId;
+      responseUser.lawyerInfo = {
         specializations: lawyerInfo.specializations,
         experience: lawyerInfo.experience,
         consultationFees: lawyerInfo.consultationFees
-      }
-    })
-  }
-});
+      };
+    }
 
+    res.json({
+      success: true,
+      token,
+      user: responseUser
+    });
 
   } catch (error) {
     console.error('❌ Login error:', error);
@@ -393,9 +406,11 @@ const verifyToken = async (req, res, next) => {
     }
 
     // Add lawyer info if user is a lawyer
-    if (user.userType === 'lawyer' && decoded.lawyerId) {
-      const lawyer = await Lawyer.findById(decoded.lawyerId);
+    if (user.userType === 'lawyer' && (decoded.lawyerId || user.lawyerId)) {
+      const lawyerId = decoded.lawyerId || user.lawyerId;
+      const lawyer = await Lawyer.findById(lawyerId);
       req.lawyer = lawyer;
+      req.user.lawyerId = lawyerId;
     }
 
     req.user = user;
@@ -416,12 +431,12 @@ router.get('/me', verifyToken, (req, res) => {
     isLawyer: req.user.userType === 'lawyer'
   };
 
-  if (req.lawyer) {
-    responseUser.lawyerId = req.lawyer._id;
+  if (req.lawyer && req.user.lawyerId) {
+    responseUser.lawyerId = req.user.lawyerId.toString();
     responseUser.lawyerInfo = {
-      specializations: req.lawyer.credentials.specializations,
-      experience: req.lawyer.credentials.experience,
-      consultationFees: req.lawyer.availability.consultationFees
+      specializations: req.lawyer.credentials?.specializations || [],
+      experience: req.lawyer.credentials?.experience || 0,
+      consultationFees: req.lawyer.availability?.consultationFees || 0
     };
   }
 

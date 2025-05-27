@@ -7,13 +7,55 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { isDarkMode, toggleTheme, theme } = useTheme();
-  const { user, isAuthenticated, logout } = useAuth();
+  const { user, isAuthenticated, logout, token } = useAuth();
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path;
 
   const handleLogout = async () => {
     await logout();
+    setIsUserMenuOpen(false);
+  };
+
+  // ✅ ENHANCED: Dynamic lawyer dashboard navigation
+  const handleLawyerDashboard = async () => {
+    if (user?.isLawyer && user?.email) {
+      try {
+        console.log('🔄 Resolving active lawyer ID for:', user.email);
+        
+        // ✅ Find the lawyer ID that has chat activity
+        const response = await fetch(`http://localhost:5000/api/chat/resolve-lawyer-id/${user.email}`, {
+          headers: { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const result = await response.json();
+        console.log('📊 Lawyer ID resolution result:', result);
+        
+        if (result.success && result.activeLawyerId) {
+          console.log('✅ Navigating to active lawyer dashboard:', result.activeLawyerId);
+          window.location.href = `/lawyer-dashboard/${result.activeLawyerId}`;
+        } else {
+          // Fallback to user's stored lawyer ID
+          console.log('⚠️ Using fallback lawyer ID:', user.lawyerId);
+          window.location.href = `/lawyer-dashboard/${user.lawyerId}`;
+        }
+      } catch (error) {
+        console.error('❌ Error resolving lawyer ID:', error);
+        // Fallback to user's stored lawyer ID
+        if (user.lawyerId) {
+          console.log('🔄 Using fallback lawyer ID due to error:', user.lawyerId);
+          window.location.href = `/lawyer-dashboard/${user.lawyerId}`;
+        } else {
+          alert('Unable to access lawyer dashboard. Please contact support.');
+        }
+      }
+    } else {
+      console.error('❌ No lawyer email found for user:', user);
+      alert('Unable to access lawyer dashboard. Please logout and login again.');
+    }
     setIsUserMenuOpen(false);
   };
 
@@ -268,7 +310,7 @@ const Navbar = () => {
                     border: `1px solid ${theme.border}`,
                     borderRadius: '8px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                    minWidth: '180px',
+                    minWidth: '200px',
                     zIndex: 1000
                   }}>
                     <div style={{
@@ -309,20 +351,15 @@ const Navbar = () => {
                       </div>
                     </div>
                     
-                    {[
-                      { path: '/profile', label: 'Profile' },
-                      { path: '/chat-history', label: 'Chat History' },
-                      ...(user.isLawyer && user.lawyerId ? [{ 
-                        path: `/lawyer-dashboard/${user.lawyerId}`, 
-                        label: 'Lawyer Dashboard' 
-                      }] : [])
-                    ].map(({ path, label }) => (
+                    {/* Navigation Links */}
+                    <div>
                       <Link
-                        key={path}
-                        to={path}
+                        to="/profile"
                         onClick={() => setIsUserMenuOpen(false)}
                         style={{
-                          display: 'block',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
                           padding: '12px 16px',
                           textDecoration: 'none',
                           color: theme.text,
@@ -336,9 +373,64 @@ const Navbar = () => {
                           e.target.style.background = 'transparent';
                         }}
                       >
-                        {label}
+                        <span>👤</span>
+                        Profile
                       </Link>
-                    ))}
+
+                      <Link
+                        to="/chat-history"
+                        onClick={() => setIsUserMenuOpen(false)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '12px 16px',
+                          textDecoration: 'none',
+                          color: theme.text,
+                          fontSize: '14px',
+                          transition: 'background 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.background = theme.tertiary;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.background = 'transparent';
+                        }}
+                      >
+                        <span>💬</span>
+                        Chat History
+                      </Link>
+
+                      {/* ✅ ENHANCED: Dynamic Lawyer Dashboard */}
+                      {user.isLawyer && (
+                        <button
+                          onClick={handleLawyerDashboard}
+                          style={{
+                            width: '100%',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            padding: '12px 16px',
+                            background: 'transparent',
+                            border: 'none',
+                            color: theme.text,
+                            fontSize: '14px',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'background 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.background = theme.tertiary;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.background = 'transparent';
+                          }}
+                        >
+                          <span>⚖️</span>
+                          Lawyer Dashboard
+                        </button>
+                      )}
+                    </div>
                     
                     <div style={{
                       borderTop: `1px solid ${theme.border}`,
@@ -356,7 +448,10 @@ const Navbar = () => {
                           fontWeight: '500',
                           cursor: 'pointer',
                           borderRadius: '4px',
-                          transition: 'background 0.2s ease'
+                          transition: 'background 0.2s ease',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
                         }}
                         onMouseEnter={(e) => {
                           e.target.style.background = theme.danger + '10';
@@ -365,6 +460,7 @@ const Navbar = () => {
                           e.target.style.background = 'transparent';
                         }}
                       >
+                        <span>🚪</span>
                         Sign Out
                       </button>
                     </div>
@@ -435,194 +531,12 @@ const Navbar = () => {
             fontSize: '20px',
             color: theme.text,
             cursor: 'pointer',
-            padding: '4px',
-            '@media (max-width: 768px)': {
-              display: 'block'
-            }
+            padding: '4px'
           }}
         >
           ☰
         </button>
       </div>
-
-      {/* Mobile Menu */}
-      {isMenuOpen && (
-        <div style={{
-          background: theme.secondary,
-          borderTop: `1px solid ${theme.border}`,
-          padding: '1rem'
-        }}>
-          {[
-            { path: '/', label: 'Home' },
-            { path: '/lawyers', label: 'Lawyers' },
-            { path: '/document-analysis', label: 'Document Analysis' },
-            { path: '/services', label: 'Services' },
-            { path: '/about', label: 'About' },
-            { path: '/contact', label: 'Contact' },
-            ...(isAuthenticated ? [
-              { path: '/profile', label: 'Profile' },
-              { path: '/chat-history', label: 'Chat History' },
-              ...(user.isLawyer && user.lawyerId ? [{ 
-                path: `/lawyer-dashboard/${user.lawyerId}`, 
-                label: 'Lawyer Dashboard' 
-              }] : [])
-            ] : [])
-          ].map(({ path, label }) => (
-            <Link
-              key={path}
-              to={path}
-              onClick={() => setIsMenuOpen(false)}
-              style={{
-                display: 'block',
-                padding: '12px 0',
-                textDecoration: 'none',
-                color: theme.text,
-                fontSize: '16px',
-                fontWeight: '500',
-                borderBottom: `1px solid ${theme.border}`
-              }}
-            >
-              {label}
-            </Link>
-          ))}
-          
-          {/* Mobile User Info */}
-          {isAuthenticated && (
-            <div style={{
-              padding: '12px 0',
-              borderBottom: `1px solid ${theme.border}`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px'
-            }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '50%',
-                background: user.profile?.profilePhoto 
-                  ? `url(http://localhost:5000/uploads/profiles/${user.profile.profilePhoto})` 
-                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: 'bold',
-                position: 'relative'
-              }}>
-                {!user.profile?.profilePhoto && user.name?.charAt(0)}
-                {user.isLawyer && (
-                  <div style={{
-                    position: 'absolute',
-                    bottom: '-2px',
-                    right: '-2px',
-                    width: '12px',
-                    height: '12px',
-                    background: '#4CAF50',
-                    borderRadius: '50%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '8px',
-                    color: 'white',
-                    border: `2px solid ${theme.secondary}`
-                  }}>
-                    ✓
-                  </div>
-                )}
-              </div>
-              <div>
-                <div style={{ 
-                  fontSize: '14px', 
-                  fontWeight: '600', 
-                  color: theme.text,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  {user.name}
-                  {user.isLawyer && (
-                    <span style={{
-                      fontSize: '9px',
-                      background: '#4CAF50',
-                      color: 'white',
-                      padding: '2px 4px',
-                      borderRadius: '8px',
-                      fontWeight: '600'
-                    }}>
-                      LAWYER
-                    </span>
-                  )}
-                </div>
-                <div style={{ fontSize: '12px', color: theme.textSecondary }}>
-                  {user.email}
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {isAuthenticated ? (
-            <button
-              onClick={() => {
-                handleLogout();
-                setIsMenuOpen(false);
-              }}
-              style={{
-                width: '100%',
-                padding: '12px 0',
-                background: 'none',
-                border: 'none',
-                color: theme.danger,
-                fontSize: '16px',
-                fontWeight: '500',
-                textAlign: 'left',
-                cursor: 'pointer'
-              }}
-            >
-              Sign Out
-            </button>
-          ) : (
-            <div style={{ paddingTop: '1rem', display: 'flex', gap: '1rem' }}>
-              <Link
-                to="/auth"
-                onClick={() => setIsMenuOpen(false)}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '12px',
-                  background: theme.tertiary,
-                  color: theme.text,
-                  textDecoration: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Sign In
-              </Link>
-              <Link
-                to="/lawyer-registration"
-                onClick={() => setIsMenuOpen(false)}
-                style={{
-                  flex: 1,
-                  textAlign: 'center',
-                  padding: '12px',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  textDecoration: 'none',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-              >
-                Join as Lawyer
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Click outside to close user menu */}
       {isUserMenuOpen && (
