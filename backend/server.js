@@ -16,7 +16,7 @@ const realTimeChatRoutes = require('./routes/realTimeChatRoutes');
 // Import real-time chat service
 const RealTimeChatService = require('./services/realTimeChatService');
 
-// Connect to database (uncomment when ready)
+// Connect to database
 connectDB();
 
 const app = express();
@@ -78,6 +78,8 @@ server.listen(PORT, () => {
   console.log(`📊 Health check: http://localhost:${PORT}/api/health`);
   console.log(`💬 Chat API: http://localhost:${PORT}/api/chat`);
   console.log(`👨‍💼 Lawyer API: http://localhost:${PORT}/api/lawyers`);
+  console.log(`📄 Document API: http://localhost:${PORT}/api/documents`);
+  console.log(`🔌 Real-time Chat: http://localhost:${PORT}/api/real-time-chat`);
 });
 
 module.exports = app;
