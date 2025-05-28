@@ -1,59 +1,79 @@
 const mongoose = require('mongoose');
 
-const LawyerSchema = new mongoose.Schema({
+const lawyerSchema = new mongoose.Schema({
   personalInfo: {
-    fullName: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    phone: { type: String, required: true },
-    profilePhoto: String,
+    fullName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true
+    },
+    phone: {
+      type: String,
+      required: true
+    },
     address: {
-      street: String,
-      city: String,
-      state: String,
-      country: String,
-      zipCode: String
-    }
+      street: { type: String, default: '' },
+      city: { type: String, default: '' },
+      state: { type: String, default: '' },
+      pincode: { type: String, default: '' },
+      country: { type: String, default: 'India' }
+    },
+    profilePhoto: String
   },
   credentials: {
-    advocateCode: { type: String, required: true, unique: true },
-    stateBarCouncil: String,
-    enrollmentDate: Date,
-    lawDegree: {
-      university: String,
-      year: Number,
-      certificate: String
+    advocateCode: {
+      type: String,
+      required: true,
+      unique: true
     },
-    specializations: [String],
-    experience: Number,
-    courtsPracticing: [String]
-  },
-  verification: {
-    status: { type: String, enum: ['pending', 'verified', 'rejected'], default: 'pending' },
-    verifiedBy: String,
-    verificationDate: Date,
-    documents: {
-      enrollmentCertificate: String,
-      degreeProof: String,
-      identityProof: String,
-      addressProof: String
-    }
+    barRegistrationNumber: {
+      type: String,
+      required: true,
+      unique: true
+    },
+    specializations: [{
+      type: String,
+      default: ['General Law']
+    }],
+    experience: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    education: [String],
+    certifications: [String]
   },
   availability: {
-    isOnline: { type: Boolean, default: false },
-    consultationFees: Number,
-    availableHours: Object,
-    languages: [String]
+    isOnline: {
+      type: Boolean,
+      default: true
+    },
+    consultationFees: {
+      type: Number,
+      default: 2500,
+      min: 0
+    },
+    workingHours: {
+      start: { type: String, default: '09:00' },
+      end: { type: String, default: '18:00' }
+    }
   },
-  ratings: {
-    averageRating: { type: Number, default: 0 },
-    totalReviews: { type: Number, default: 0 },
-    reviews: [{
-      userId: mongoose.Schema.Types.ObjectId,
-      rating: Number,
-      comment: String,
-      date: Date
-    }]
-  }
-}, { timestamps: true });
+  practiceAreas: [String],
+  documents: [String]
+}, {
+  timestamps: true
+});
 
-module.exports = mongoose.model('Lawyer', LawyerSchema);
+// ✅ INDEX FOR BETTER PERFORMANCE
+lawyerSchema.index({ 'personalInfo.email': 1 });
+lawyerSchema.index({ 'credentials.advocateCode': 1 });
+lawyerSchema.index({ 'credentials.specializations': 1 });
+
+module.exports = mongoose.model('Lawyer', lawyerSchema);
