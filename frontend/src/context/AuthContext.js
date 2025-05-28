@@ -14,14 +14,21 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [persist, setPersist] = useState(JSON.parse(localStorage.getItem('persist')) || false);
 
+  // ✅ PERSISTENT LOGIN: Initialize authentication on app load
   useEffect(() => {
-    const initAuth = async () => {
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
+    let isMounted = true;
 
-      if (storedToken && storedUser) {
-        try {
+    const verifyRefreshToken = async () => {
+      try {
+        const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+
+        if (storedToken && storedUser) {
+          console.log('🔄 Verifying stored authentication...');
+          
+          // Verify token is still valid
           const response = await fetch('http://localhost:5000/api/auth/me', {
             headers: {
               'Authorization': `Bearer ${storedToken}`
@@ -30,24 +37,112 @@ export const AuthProvider = ({ children }) => {
 
           if (response.ok) {
             const data = await response.json();
-            setUser(data.user);
-            setToken(storedToken);
-            console.log('✅ Auth initialized:', data.user);
+            if (isMounted) {
+              setUser(data.user);
+              setToken(storedToken);
+              console.log('✅ Authentication restored for:', data.user.name);
+            }
+          } else if (response.status === 401) {
+            // Token expired, try to refresh
+            console.log('🔄 Token expired, attempting refresh...');
+            await refreshToken();
           } else {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+            // Invalid token, clear storage
+            console.log('❌ Invalid token, clearing storage');
+            clearAuthData();
           }
-        } catch (error) {
-          console.error('Auth verification error:', error);
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
+        }
+      } catch (error) {
+        console.error('❌ Auth verification error:', error);
+        if (isMounted) {
+          clearAuthData();
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
         }
       }
-      setLoading(false);
     };
 
-    initAuth();
+    // Only verify if persist is enabled or we have stored data
+    if (persist || localStorage.getItem('token')) {
+      verifyRefreshToken();
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [persist]);
+
+  // ✅ CROSS-TAB SYNC: Listen for storage changes
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'token') {
+        if (!e.newValue) {
+          // Token removed in another tab
+          setUser(null);
+          setToken(null);
+        } else {
+          // Token updated in another tab
+          setToken(e.newValue);
+        }
+      } else if (e.key === 'user' && e.newValue) {
+        try {
+          const updatedUser = JSON.parse(e.newValue);
+          setUser(updatedUser);
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
+
+  const clearAuthData = () => {
+    setUser(null);
+    setToken(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+  };
+
+  const refreshToken = async () => {
+    try {
+      const currentToken = token || localStorage.getItem('token');
+      if (!currentToken) {
+        throw new Error('No token to refresh');
+      }
+
+      const response = await fetch('http://localhost:5000/api/auth/refresh', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${currentToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        
+        console.log('✅ Token refreshed successfully');
+        return data.token;
+      } else {
+        throw new Error('Token refresh failed');
+      }
+    } catch (error) {
+      console.error('❌ Token refresh error:', error);
+      clearAuthData();
+      return null;
+    }
+  };
 
   const login = async (email, password) => {
     try {
@@ -68,13 +163,18 @@ export const AuthProvider = ({ children }) => {
         
         setUser(data.user);
         setToken(data.token);
+        
+        // ✅ STORE IN LOCALSTORAGE FOR PERSISTENCE
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
+        
+        // ✅ ENABLE PERSIST BY DEFAULT
+        setPersist(true);
+        localStorage.setItem('persist', JSON.stringify(true));
         
         return { 
           success: true, 
           user: data.user,
-          // ✅ DYNAMIC: Use actual user's lawyer ID
           shouldRedirect: data.user.isLawyer && data.user.lawyerId,
           redirectPath: data.user.isLawyer && data.user.lawyerId 
             ? `/lawyer-dashboard/${data.user.lawyerId}` 
@@ -89,73 +189,14 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, userType = 'client') => {
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name, email, password, userType })
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setUser(data.user);
-        setToken(data.token);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        return { success: true, user: data.user };
-      } else {
-        return { success: false, message: data.message };
-      }
-    } catch (error) {
-      console.error('Register error:', error);
-      return { success: false, message: 'Network error' };
-    }
-  };
-
-  const registerLawyer = async (lawyerData) => {
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/register-lawyer', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(lawyerData)
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        setUser(data.user);
-        setToken(data.token);
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        
-        // Auto-redirect for new lawyer registration
-        if (data.user.isLawyer && data.user.lawyerId) {
-          localStorage.setItem('redirectAfterLogin', `/lawyer-dashboard/${data.user.lawyerId}`);
-        }
-        
-        return { success: true, user: data.user, message: data.message };
-      } else {
-        return { success: false, message: data.message };
-      }
-    } catch (error) {
-      console.error('Lawyer register error:', error);
-      return { success: false, message: 'Network error' };
-    }
-  };
-
   const logout = async () => {
     try {
-      if (user) {
+      if (user && token) {
         await fetch('http://localhost:5000/api/auth/logout', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({ 
             userId: user.id,
@@ -166,11 +207,45 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      setUser(null);
-      setToken(null);
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('redirectAfterLogin');
+      clearAuthData();
+      setPersist(false);
+      localStorage.removeItem('persist');
+      console.log('✅ User logged out successfully');
+    }
+  };
+
+  // ✅ API REQUEST INTERCEPTOR
+  const apiRequest = async (url, options = {}) => {
+    const currentToken = token || localStorage.getItem('token');
+    
+    const config = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(currentToken && { 'Authorization': `Bearer ${currentToken}` }),
+        ...options.headers
+      }
+    };
+
+    try {
+      let response = await fetch(url, config);
+      
+      // If unauthorized, try to refresh token
+      if (response.status === 401 && currentToken) {
+        console.log('🔄 API request unauthorized, refreshing token...');
+        const newToken = await refreshToken();
+        
+        if (newToken) {
+          // Retry with new token
+          config.headers.Authorization = `Bearer ${newToken}`;
+          response = await fetch(url, config);
+        }
+      }
+      
+      return response;
+    } catch (error) {
+      console.error('API request error:', error);
+      throw error;
     }
   };
 
@@ -178,11 +253,13 @@ export const AuthProvider = ({ children }) => {
     user,
     token,
     login,
-    register,
-    registerLawyer,
     logout,
+    refreshToken,
+    apiRequest,
     loading,
-    isAuthenticated: !!user,
+    persist,
+    setPersist,
+    isAuthenticated: !!user && !!token,
     isLawyer: user?.isLawyer || false
   };
 

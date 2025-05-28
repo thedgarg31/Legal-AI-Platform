@@ -7,7 +7,7 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const { isDarkMode, toggleTheme, theme } = useTheme();
-  const { user, isAuthenticated, logout, token } = useAuth();
+  const { user, isAuthenticated, logout, token, refreshToken, apiRequest } = useAuth();
   const location = useLocation();
 
   const isActive = (path) => location.pathname === path;
@@ -17,47 +17,19 @@ const Navbar = () => {
     setIsUserMenuOpen(false);
   };
 
-  // ✅ ENHANCED: Dynamic lawyer dashboard navigation
-  const handleLawyerDashboard = async () => {
-    if (user?.isLawyer && user?.email) {
-      try {
-        console.log('🔄 Resolving active lawyer ID for:', user.email);
-        
-        // ✅ Find the lawyer ID that has chat activity
-        const response = await fetch(`http://localhost:5000/api/chat/resolve-lawyer-id/${user.email}`, {
-          headers: { 
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const result = await response.json();
-        console.log('📊 Lawyer ID resolution result:', result);
-        
-        if (result.success && result.activeLawyerId) {
-          console.log('✅ Navigating to active lawyer dashboard:', result.activeLawyerId);
-          window.location.href = `/lawyer-dashboard/${result.activeLawyerId}`;
-        } else {
-          // Fallback to user's stored lawyer ID
-          console.log('⚠️ Using fallback lawyer ID:', user.lawyerId);
-          window.location.href = `/lawyer-dashboard/${user.lawyerId}`;
-        }
-      } catch (error) {
-        console.error('❌ Error resolving lawyer ID:', error);
-        // Fallback to user's stored lawyer ID
-        if (user.lawyerId) {
-          console.log('🔄 Using fallback lawyer ID due to error:', user.lawyerId);
-          window.location.href = `/lawyer-dashboard/${user.lawyerId}`;
-        } else {
-          alert('Unable to access lawyer dashboard. Please contact support.');
-        }
-      }
+  // Update the handleLawyerDashboard function in your Navbar.js
+  const handleLawyerDashboard = () => {
+    if (user?.isLawyer && user?.lawyerId) {
+      console.log('🔄 Navigating to lawyer dashboard for ID:', user.lawyerId);
+      window.location.href = `/lawyer-dashboard/${user.lawyerId}`;
     } else {
-      console.error('❌ No lawyer email found for user:', user);
+      console.error('❌ No lawyer ID found for user:', user);
       alert('Unable to access lawyer dashboard. Please logout and login again.');
     }
     setIsUserMenuOpen(false);
   };
+
+
 
   return (
     <nav style={{
@@ -402,7 +374,7 @@ const Navbar = () => {
                       </Link>
 
                       {/* ✅ ENHANCED: Dynamic Lawyer Dashboard */}
-                      {user.isLawyer && (
+                      {user.isLawyer && user.lawyerId && (
                         <button
                           onClick={handleLawyerDashboard}
                           style={{
@@ -531,7 +503,10 @@ const Navbar = () => {
             fontSize: '20px',
             color: theme.text,
             cursor: 'pointer',
-            padding: '4px'
+            padding: '4px',
+            '@media (max-width: 768px)': {
+              display: 'block'
+            }
           }}
         >
           ☰

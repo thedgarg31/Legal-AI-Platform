@@ -1,44 +1,43 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import PersistLogin from './components/PersistLogin';
 import ProtectedRoute from './components/ProtectedRoute';
-import ProtectedLawyerRoute from './components/ProtectedLawyerRoute';
 import Navbar from './components/Navbar';
-import Footer from './components/Footer';
 import Home from './pages/Home';
-import About from './pages/About';
-import Services from './pages/Services';
-import Contact from './pages/Contact';
 import Auth from './pages/Auth';
-import Profile from './pages/Profile';
-import LawyerRegistration from './pages/LawyerRegistration';
 import FindLawyers from './pages/FindLawyers';
-import ChatRoom from './pages/ChatRoom';
-import LawyerDashboard from './pages/LawyerDashboard';
-import DocumentAnalysisPage from './pages/DocumentAnalysis';
+import Chat from './pages/ChatRoom';
 import ChatHistory from './pages/ChatHistory';
-import './App.css';
+import LawyerDashboard from './pages/LawyerDashboard';
+import Profile from './pages/Profile';
+import DocumentAnalysis from './pages/DocumentAnalysis';
+import Services from './pages/Services';
+import About from './pages/About';
+import Contact from './pages/Contact';
+import LawyerRegistration from './pages/LawyerRegistration';
 
 function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
         <Router>
-          <div className="app-container">
+          <div className="App">
             <Navbar />
-            <main className="main-content">
-              <Routes>
+            <Routes>
+              {/* Wrap everything in PersistLogin */}
+              <Route element={<PersistLogin />}>
                 {/* Public Routes */}
                 <Route path="/" element={<Home />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/services" element={<Services />} />
-                <Route path="/contact" element={<Contact />} />
                 <Route path="/auth" element={<Auth />} />
-                <Route path="/lawyer-registration" element={<LawyerRegistration />} />
                 <Route path="/lawyers" element={<FindLawyers />} />
-                
-                {/* Protected Routes - Require Authentication */}
+                <Route path="/lawyer-registration" element={<LawyerRegistration />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/about" element={<About />} />
+                <Route path="/contact" element={<Contact />} />
+
+                {/* Protected Routes */}
                 <Route 
                   path="/profile" 
                   element={
@@ -51,7 +50,7 @@ function App() {
                   path="/chat/:lawyerId" 
                   element={
                     <ProtectedRoute>
-                      <ChatRoom />
+                      <Chat />
                     </ProtectedRoute>
                   } 
                 />
@@ -67,23 +66,23 @@ function App() {
                   path="/document-analysis" 
                   element={
                     <ProtectedRoute>
-                      <DocumentAnalysisPage />
+                      <DocumentAnalysis />
                     </ProtectedRoute>
                   } 
                 />
-                
-                {/* Lawyer Dashboard - Protected for Lawyers Only */}
                 <Route 
                   path="/lawyer-dashboard/:lawyerId" 
                   element={
-                    <ProtectedLawyerRoute>
+                    <ProtectedRoute requireLawyer={true}>
                       <LawyerDashboard />
-                    </ProtectedLawyerRoute>
+                    </ProtectedRoute>
                   } 
                 />
-              </Routes>
-            </main>
-            <Footer />
+              </Route>
+
+              {/* Catch all route */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
           </div>
         </Router>
       </AuthProvider>

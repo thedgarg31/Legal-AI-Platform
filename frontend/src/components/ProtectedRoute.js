@@ -1,47 +1,36 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAuth();
-  const { theme } = useTheme();
+const ProtectedRoute = ({ children, requireLawyer = false }) => {
+  const { isAuthenticated, user, loading } = useAuth();
   const location = useLocation();
 
+  // Show loading while checking authentication
   if (loading) {
     return (
       <div style={{
-        background: theme.primary,
-        minHeight: '100vh',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
+        height: '100vh',
         fontFamily: '"Inter", system-ui, -apple-system, sans-serif'
       }}>
         <div style={{
           textAlign: 'center',
-          background: theme.card,
-          padding: '2rem',
-          borderRadius: '12px',
-          border: `1px solid ${theme.border}`,
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+          padding: '2rem'
         }}>
           <div style={{
             width: '40px',
             height: '40px',
-            border: `4px solid ${theme.border}`,
-            borderTop: `4px solid ${theme.accent}`,
+            border: '4px solid #f3f3f3',
+            borderTop: '4px solid #667eea',
             borderRadius: '50%',
             animation: 'spin 1s linear infinite',
             margin: '0 auto 1rem auto'
           }}></div>
-          <p style={{ 
-            color: theme.text, 
-            fontSize: '1rem', 
-            fontWeight: '500', 
-            margin: 0 
-          }}>
-            Verifying authentication...
+          <p style={{ color: '#666', margin: 0 }}>
+            Checking authentication...
           </p>
         </div>
         <style jsx>{`
@@ -54,8 +43,14 @@ const ProtectedRoute = ({ children }) => {
     );
   }
 
+  // Redirect to login if not authenticated
   if (!isAuthenticated) {
     return <Navigate to="/auth" state={{ from: location }} replace />;
+  }
+
+  // Check if lawyer access is required
+  if (requireLawyer && !user?.isLawyer) {
+    return <Navigate to="/" replace />;
   }
 
   return children;

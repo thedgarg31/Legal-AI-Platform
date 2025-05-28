@@ -7,7 +7,106 @@ const Lawyer = require('../models/Lawyer');
 
 const router = express.Router();
 
-// ✅ ENHANCED: Dynamic Lawyer Registration (Real Registration Flow)
+// Email validation function
+const isValidEmail = (email) => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+// Regular User Registration
+router.post('/register', [
+  body('name')
+    .notEmpty()
+    .withMessage('Name is required')
+    .trim()
+    .isLength({ min: 2, max: 50 })
+    .withMessage('Name must be between 2 and 50 characters'),
+  
+  body('email')
+    .isEmail()
+    .withMessage('Please provide a valid email address')
+    .normalizeEmail()
+    .trim(),
+  
+  body('password')
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters long')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ 
+        success: false, 
+        message: errors.array()[0].msg,
+        errors: errors.array()
+      });
+    }
+
+    const { name, email, password } = req.body;
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'User already exists with this email' 
+      });
+    }
+
+    // Check if lawyer exists with this email
+    const existingLawyer = await Lawyer.findOne({ 'personalInfo.email': email });
+    if (existingLawyer) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'A lawyer account already exists with this email. Please use the lawyer login.' 
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    // Create user
+    const user = new User({ 
+      name, 
+      email, 
+      password: hashedPassword,
+      userType: 'client'
+    });
+    
+    await user.save();
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id, userType: 'client' }, 
+      process.env.JWT_SECRET || 'your-secret-key', 
+      { expiresIn: '7d' }
+    );
+
+    console.log('✅ Client registered:', user.name);
+
+    res.status(201).json({
+      success: true,
+      token,
+      user: { 
+        id: user._id, 
+        name: user.name, 
+        email: user.email,
+        userType: 'client',
+        profile: user.profile,
+        isLawyer: false
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Register error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error during registration' 
+    });
+  }
+});
+
+// ✅ ENHANCED: Dynamic Lawyer Registration
 router.post('/register-lawyer', [
   body('personalInfo.fullName')
     .notEmpty()
@@ -286,5 +385,190 @@ router.post('/login', [
   }
 });
 
-// Rest of auth routes remain the same...
+// ✅ TOKEN REFRESH ENDPOINT
+router.post('/refresh', async (req, res) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'No token provided' 
+      });
+    }
+
+    // Verify current token (even if expired, we can still decode it)
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    } catch (error) {
+      // If token is expired, try to decode without verification to get user info
+      if (error.name === 'TokenExpiredError') {
+        decoded = jwt.decode(token);
+      } else {
+        return res.status(401).json({ 
+          success: false, 
+          message: 'Invalid token' 
+        });
+      }
+    }
+
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'Invalid token structure' 
+      });
+    }
+
+    // Get fresh user data
+    const user = await User.findById(decoded.id).select('-password');
+    if (!user) {
+      return res.status(401).json({ 
+        success: false, 
+        message: 'User not found' 
+      });
+    }
+
+    // Generate new token
+    const newTokenPayload = { 
+      id: user._id, 
+      userType: user.userType 
+    };
+
+    // Add lawyer info if applicable
+    let lawyerInfo = null;
+    if (user.userType === 'lawyer' && user.lawyerId) {
+      const lawyer = await Lawyer.findById(user.lawyerId);
+      if (lawyer) {
+        newTokenPayload.lawyerId = user.lawyerId;
+        lawyerInfo = {
+          lawyerId: user.lawyerId.toString(),
+          specializations: lawyer.credentials?.specializations || [],
+          experience: lawyer.credentials?.experience || 0,
+          consultationFees: lawyer.availability?.consultationFees || 0
+        };
+      }
+    }
+
+    const newToken = jwt.sign(
+      newTokenPayload,
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '7d' }
+    );
+
+    // Prepare user response
+    const responseUser = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      userType: user.userType,
+      profile: user.profile,
+      isLawyer: user.userType === 'lawyer'
+    };
+
+    if (lawyerInfo) {
+      responseUser.lawyerId = lawyerInfo.lawyerId;
+      responseUser.lawyerInfo = lawyerInfo;
+    }
+
+    console.log('✅ Token refreshed for:', user.name);
+
+    res.json({
+      success: true,
+      token: newToken,
+      user: responseUser,
+      message: 'Token refreshed successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Token refresh error:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Server error during token refresh' 
+    });
+  }
+});
+
+// Logout
+router.post('/logout', async (req, res) => {
+  try {
+    const { userId, lawyerId } = req.body;
+    
+    if (userId) {
+      await User.findByIdAndUpdate(userId, {
+        isOnline: false,
+        lastSeen: new Date()
+      });
+    }
+
+    if (lawyerId) {
+      await Lawyer.findByIdAndUpdate(lawyerId, {
+        'availability.isOnline': false
+      });
+    }
+
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    console.error('❌ Logout error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Verify token middleware
+const verifyToken = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+    
+    if (!token) {
+      return res.status(401).json({ success: false, message: 'No token provided' });
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    const user = await User.findById(decoded.id).select('-password');
+    
+    if (!user) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    // Add lawyer info if user is a lawyer
+    if (user.userType === 'lawyer' && (decoded.lawyerId || user.lawyerId)) {
+      const lawyerId = decoded.lawyerId || user.lawyerId;
+      const lawyer = await Lawyer.findById(lawyerId);
+      req.lawyer = lawyer;
+      req.user.lawyerId = lawyerId;
+    }
+
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+};
+
+// Get current user
+router.get('/me', verifyToken, (req, res) => {
+  const responseUser = {
+    id: req.user._id,
+    name: req.user.name,
+    email: req.user.email,
+    userType: req.user.userType,
+    profile: req.user.profile,
+    isLawyer: req.user.userType === 'lawyer'
+  };
+
+  if (req.lawyer && req.user.lawyerId) {
+    responseUser.lawyerId = req.user.lawyerId.toString();
+    responseUser.lawyerInfo = {
+      specializations: req.lawyer.credentials?.specializations || [],
+      experience: req.lawyer.credentials?.experience || 0,
+      consultationFees: req.lawyer.availability?.consultationFees || 0
+    };
+  }
+
+  res.json({
+    success: true,
+    user: responseUser
+  });
+});
+
 module.exports = router;
