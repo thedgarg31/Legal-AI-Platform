@@ -30,7 +30,6 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024 // 5MB limit
   },
   fileFilter: (req, file, cb) => {
-    // Allow images and documents
     const allowedTypes = /jpeg|jpg|png|gif|pdf|doc|docx/;
     const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
     const mimetype = allowedTypes.test(file.mimetype) || 
@@ -46,7 +45,6 @@ const upload = multer({
   }
 });
 
-// Define upload fields for lawyer registration
 const uploadFields = upload.fields([
   { name: 'profilePhoto', maxCount: 1 },
   { name: 'documents', maxCount: 5 },
@@ -54,7 +52,6 @@ const uploadFields = upload.fields([
   { name: 'educationCertificates', maxCount: 3 }
 ]);
 
-// Middleware for handling upload errors
 const handleUploadError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
@@ -81,25 +78,43 @@ const handleUploadError = (err, req, res, next) => {
   next();
 };
 
-// ✅ ENHANCED: Get all lawyers with duplicate prevention
+// ✅ ENHANCED: Get all lawyers with smart deduplication
 router.get('/', async (req, res) => {
   try {
     console.log('=== GET ALL LAWYERS ===');
     
-    // ✅ DYNAMIC: Get unique lawyers (prevent duplicates by email)
+    // ✅ Get unique lawyers by email, prioritizing online and higher experience
     const lawyers = await Lawyer.aggregate([
       {
         $group: {
           _id: "$personalInfo.email",
-          doc: { $first: "$$ROOT" }
+          docs: { $push: "$$ROOT" }
         }
       },
       {
-        $replaceRoot: { newRoot: "$doc" }
+        $project: {
+          bestDoc: {
+            $arrayElemAt: [
+              {
+                $sortArray: {
+                  input: "$docs",
+                  sortBy: {
+                    "availability.isOnline": -1,
+                    "credentials.experience": -1
+                  }
+                }
+              },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $replaceRoot: { newRoot: "$bestDoc" }
       },
       {
         $project: {
-          "personalInfo.password": 0 // Exclude password
+          "personalInfo.password": 0
         }
       },
       {
@@ -132,7 +147,6 @@ router.get('/:id', async (req, res) => {
     console.log('=== GET LAWYER BY ID ===');
     console.log('Lawyer ID:', id);
     
-    // Validate ID
     if (!id || id === 'undefined' || id === 'null') {
       console.log('❌ Invalid lawyer ID provided:', id);
       return res.status(400).json({
@@ -141,7 +155,6 @@ router.get('/:id', async (req, res) => {
       });
     }
 
-    // Validate ObjectId format
     if (!mongoose.Types.ObjectId.isValid(id)) {
       console.log('❌ Invalid ObjectId format:', id);
       return res.status(400).json({
@@ -177,14 +190,14 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ✅ ENHANCED: Register new lawyer with duplicate prevention
+// ✅ ENHANCED: Register new lawyer with strict duplicate prevention
 router.post('/', uploadFields, handleUploadError, async (req, res) => {
   try {
     console.log('=== REGISTER LAWYER ===');
     
     const lawyerData = req.body;
     
-    // ✅ DUPLICATE PREVENTION: Check if lawyer already exists
+    // ✅ STRICT DUPLICATE PREVENTION
     const existingLawyer = await Lawyer.findOne({
       'personalInfo.email': lawyerData.personalInfo?.email
     });
@@ -193,11 +206,11 @@ router.post('/', uploadFields, handleUploadError, async (req, res) => {
       console.log('❌ Duplicate lawyer prevented:', lawyerData.personalInfo?.email);
       return res.status(400).json({
         success: false,
-        message: 'Lawyer already exists with this email'
+        message: 'Lawyer already exists with this email. Please use a different email address.'
       });
     }
 
-    // ✅ VALIDATION: Ensure required fields
+    // ✅ VALIDATION
     if (!lawyerData.personalInfo?.fullName || !lawyerData.personalInfo?.email) {
       return res.status(400).json({
         success: false,
@@ -216,7 +229,7 @@ router.post('/', uploadFields, handleUploadError, async (req, res) => {
         ...lawyer.toObject(),
         personalInfo: {
           ...lawyer.personalInfo,
-          password: undefined // Remove password from response
+          password: undefined
         }
       },
       message: 'Lawyer registered successfully'
@@ -232,109 +245,58 @@ router.post('/', uploadFields, handleUploadError, async (req, res) => {
   }
 });
 
-// ✅ ENHANCED: Update lawyer with duplicate prevention
-router.put('/:id', uploadFields, handleUploadError, async (req, res) => {
+// ✅ NEW: Remove specific lawyers by criteria
+router.delete('/remove-specific', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { criteria } = req.body;
     
-    console.log('=== UPDATE LAWYER ===');
-    console.log('Lawyer ID:', id);
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    console.log('=== REMOVE SPECIFIC LAWYERS ===');
+    console.log('Criteria:', criteria);
+    
+    if (!criteria || !Array.isArray(criteria)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid lawyer ID format'
+        message: 'Criteria array is required'
       });
     }
-
-    // ✅ DUPLICATE PREVENTION: Check if email update would create duplicate
-    if (req.body.personalInfo?.email) {
-      const existingLawyer = await Lawyer.findOne({
-        'personalInfo.email': req.body.personalInfo.email,
-        _id: { $ne: id } // Exclude current lawyer
+    
+    let totalRemoved = 0;
+    const results = [];
+    
+    for (const criterion of criteria) {
+      const result = await Lawyer.deleteOne(criterion);
+      totalRemoved += result.deletedCount;
+      results.push({
+        criterion,
+        deleted: result.deletedCount > 0
       });
-
-      if (existingLawyer) {
-        return res.status(400).json({
-          success: false,
-          message: 'Another lawyer already exists with this email'
-        });
+      
+      if (result.deletedCount > 0) {
+        console.log('✅ Removed lawyer matching:', criterion);
+      } else {
+        console.log('❌ No lawyer found matching:', criterion);
       }
     }
-
-    const updatedLawyer = await Lawyer.findByIdAndUpdate(
-      id,
-      req.body,
-      { new: true, runValidators: true }
-    ).select('-personalInfo.password');
-
-    if (!updatedLawyer) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lawyer not found'
-      });
-    }
-
-    console.log('✅ Lawyer updated:', updatedLawyer.personalInfo.fullName);
-
-    res.json({
-      success: true,
-      lawyer: updatedLawyer,
-      message: 'Lawyer updated successfully'
-    });
-
-  } catch (error) {
-    console.error('❌ Update lawyer error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while updating lawyer',
-      error: error.message
-    });
-  }
-});
-
-// ✅ ENHANCED: Delete lawyer
-router.delete('/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
     
-    console.log('=== DELETE LAWYER ===');
-    console.log('Lawyer ID:', id);
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid lawyer ID format'
-      });
-    }
-
-    const deletedLawyer = await Lawyer.findByIdAndDelete(id);
-
-    if (!deletedLawyer) {
-      return res.status(404).json({
-        success: false,
-        message: 'Lawyer not found'
-      });
-    }
-
-    console.log('✅ Lawyer deleted:', deletedLawyer.personalInfo.fullName);
-
+    console.log(`📊 Total lawyers removed: ${totalRemoved}`);
+    
     res.json({
       success: true,
-      message: 'Lawyer deleted successfully'
+      message: `Removed ${totalRemoved} lawyers`,
+      totalRemoved,
+      results
     });
 
   } catch (error) {
-    console.error('❌ Delete lawyer error:', error);
+    console.error('❌ Remove specific lawyers error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error while deleting lawyer',
-      error: error.message
+      message: 'Server error while removing lawyers'
     });
   }
 });
 
-// ✅ ENHANCED: Search lawyers with duplicate prevention
+// ✅ ENHANCED: Search lawyers
 router.get('/search', async (req, res) => {
   try {
     const { specialization, location, experience } = req.query;
@@ -344,7 +306,6 @@ router.get('/search', async (req, res) => {
 
     let pipeline = [];
 
-    // Match stage
     let matchStage = {};
     if (specialization) {
       matchStage['credentials.specializations'] = { $in: [new RegExp(specialization, 'i')] };
@@ -360,16 +321,34 @@ router.get('/search', async (req, res) => {
       pipeline.push({ $match: matchStage });
     }
 
-    // ✅ DUPLICATE PREVENTION: Group by email to get unique lawyers
+    // ✅ Smart deduplication with best lawyer selection
     pipeline.push(
       {
         $group: {
           _id: "$personalInfo.email",
-          doc: { $first: "$$ROOT" }
+          docs: { $push: "$$ROOT" }
         }
       },
       {
-        $replaceRoot: { newRoot: "$doc" }
+        $project: {
+          bestDoc: {
+            $arrayElemAt: [
+              {
+                $sortArray: {
+                  input: "$docs",
+                  sortBy: {
+                    "availability.isOnline": -1,
+                    "credentials.experience": -1
+                  }
+                }
+              },
+              0
+            ]
+          }
+        }
+      },
+      {
+        $replaceRoot: { newRoot: "$bestDoc" }
       },
       {
         $project: {
@@ -401,54 +380,6 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// ✅ NEW: Remove duplicates endpoint (admin use)
-router.post('/remove-duplicates', async (req, res) => {
-  try {
-    console.log('=== REMOVING DUPLICATE LAWYERS ===');
-    
-    // Find duplicates by email
-    const duplicates = await Lawyer.aggregate([
-      {
-        $group: {
-          _id: "$personalInfo.email",
-          docs: { $push: "$$ROOT" },
-          count: { $sum: 1 }
-        }
-      },
-      {
-        $match: { count: { $gt: 1 } }
-      }
-    ]);
-
-    let removedCount = 0;
-
-    for (const duplicate of duplicates) {
-      const docsToRemove = duplicate.docs.slice(1); // Keep first, remove rest
-      
-      for (const doc of docsToRemove) {
-        await Lawyer.findByIdAndDelete(doc._id);
-        removedCount++;
-        console.log(`❌ Removed duplicate: ${doc.personalInfo.fullName} (${doc._id})`);
-      }
-    }
-
-    console.log(`✅ Removed ${removedCount} duplicate lawyers`);
-
-    res.json({
-      success: true,
-      message: `Removed ${removedCount} duplicate lawyers`,
-      removedCount
-    });
-
-  } catch (error) {
-    console.error('❌ Remove duplicates error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error while removing duplicates'
-    });
-  }
-});
-
 // Health check route
 router.get('/health/check', (req, res) => {
   res.json({
@@ -456,13 +387,11 @@ router.get('/health/check', (req, res) => {
     message: 'Lawyer routes are working',
     timestamp: new Date().toISOString(),
     endpoints: [
-      'GET / - Get all unique lawyers',
+      'GET / - Get all unique lawyers (smart deduplication)',
       'GET /:id - Get lawyer by ID',
-      'POST / - Register new lawyer (with duplicate prevention)',
-      'PUT /:id - Update lawyer (with duplicate prevention)',
-      'DELETE /:id - Delete lawyer',
-      'GET /search - Search unique lawyers',
-      'POST /remove-duplicates - Remove duplicate lawyers (admin)'
+      'POST / - Register new lawyer (strict duplicate prevention)',
+      'DELETE /remove-specific - Remove lawyers by specific criteria',
+      'GET /search - Search unique lawyers'
     ]
   });
 });
