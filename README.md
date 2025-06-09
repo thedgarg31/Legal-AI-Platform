@@ -1,131 +1,225 @@
+# 💼 Legal Affairs Platform
 
-# 💼 Legal AI Platform
-
-A **modern web application** for **instant, AI-powered legal document analysis**. Upload your legal contracts or agreements and receive **risk assessment**, **clause highlighting**, and **actionable insights**—all within a **user-friendly interface**.
+A modern web app for **instant, AI-powered legal document analysis**, real-time lawyer-client interaction, and geo-based lawyer discovery. Designed with a clean, responsive UI and scalable full-stack architecture.
 
 ---
 
 ## 🚀 Features
 
-1. **Automated PDF Upload & Analysis**
+1. **Automated PDF Upload & Analysis**  
+   - Upload legal documents (contracts, agreements)  
+   - Instant AI-powered risk summary and clause highlighting
 
-   * Instantly upload legal documents and receive **AI-driven risk assessments**.
+2. **Clause Highlighting & Risk Dashboard**  
+   - Automatically flag risky clauses  
+   - Visual summary: risk levels, document stats, flagged terms
 
-2. **Clause Highlighting**
+3. **Secure In-App Chat**  
+   - Encrypted messaging between clients and lawyers  
+   - Share documents and track conversation context
 
-   * **Risky terms and clauses** are automatically detected and **highlighted** for easy review.
+4. **Nearby Lawyer Finder**  
+   - Geo-based search with filters (specialization, ratings, language)  
+   - One-click contact via chat or call
 
-3. **Risk Dashboard**
+5. **Lawyer Onboarding & Promotion**  
+   - Verified profile creation (ID/bar verification)  
+   - Option to advertise services with featured listings
 
-   * Get a **visual summary** of risk levels, flagged clauses, and document statistics.
+6. **Client Dashboard**  
+   - Real-time tracking of cases, chats, docs, and status updates
 
-4. **Modern UI**
+7. **Smart Document Handling**  
+   - Upload, store, and analyze files digitally  
+   - Eliminates printing/scanning
 
-   * A **clean, responsive interface** for both desktop and mobile devices.
-
-5. **Secure & Private**
-
-   * Your documents are **processed securely** and **never stored** after analysis.
+8. **Verified Lawyer Network**  
+   - Onboarded professionals only with verified credentials
 
 ---
 
-## 🛠️ Tech Stack
+## 👍 Product USP
 
-* **Frontend**: React, JavaScript, CSS
-* **Backend**: Node.js, Express.js
-* **PDF Processing**: `pdf-parse` (Node.js)
-* **AI/NLP**: Custom keyword and clause detection (extendable to **LLMs**)
-* **Authentication**: Simple session-based (**demo mode**)
-* **Deployment**: Deployable on **Vercel, Netlify, Render, Heroku**, or **your own server**
+- 🧠 AI-powered instant legal insight  
+- 💬 Secure, traceable in-app communication  
+- 📍 Geo-based, verified lawyer discovery  
+- 🧑‍⚖️ Lawyer self-promotion & verified profiles  
+- 📊 Unified client dashboard  
+- ⚙️ Scalable, cloud-native architecture  
+- 🌍 Responsive, user-friendly interface  
+- 🔄 End-to-end legal tech ecosystem
 
 ---
 
-## ⚡ Getting Started
+## 👥 User Flow
 
-### 1️⃣ Clone the Repository
+### Client
+1. Sign up / log in  
+2. Upload PDF → get AI analysis  
+3. Find and select a lawyer (filter by nearby, specialist, rating)  
+4. Start secure chat & share docs  
+5. Access real-time updates via dashboard  
 
+### Lawyer
+1. Sign up & complete ID/bar verification  
+2. Create and optionally promote profile  
+3. Receive and respond to client chats  
+4. Analyze documents and share insights  
+5. Build reputation via reviews and lead generation  
+
+---
+
+## 🎨 Design Highlights
+
+- **Clean UI** for confidence and ease of use  
+- **Separate dashboards** for clients and lawyers  
+- **Core flows** are 1–2 clicks away  
+- **Mobile-responsive** for all devices  
+- **Consistent styling** via Tailwind CSS  
+
+---
+
+## 🏗️ Technical Architecture
+
+- **Frontend**  
+  - React.js with Axios and React Router  
+  - Dynamic routing and secure state management  
+
+- **Backend**  
+  - Node.js + Express: handles APIs, file handling, chat logic  
+
+- **Database**  
+  - MongoDB via Mongoose: users, cases, docs, chats  
+
+- **Authentication**  
+  - JWT-based secure sessions  
+
+- **AI Module**  
+  - OpenAI/GPT API for PDF analysis and summarization  
+
+- **File Storage**  
+  - Cloudinary for images and file uploads  
+
+- **Live Chat**  
+  - Socket.io for real-time messaging  
+
+- **Map Integration**  
+  - Google Maps or Mapbox for lawyer location services  
+
+- **Hosting**  
+  - Frontend: Netlify/Vercel  
+  - Backend: Render/Railway  
+  - Database: MongoDB Atlas  
+
+---
+
+## 🛠️ Tech Stack Overview
+
+| Layer            | Technology                                            |
+|------------------|-------------------------------------------------------|
+| **Frontend**     | React.js, Tailwind CSS, Axios, react-router-dom       |
+| **Backend**      | Node.js, Express.js, Socket.io                        |
+| **Database**     | MongoDB + Mongoose                                   |
+| **Auth**         | JWT                                                  |
+| **AI/NLP**       | OpenAI API (GPT for PDF clause analysis)             |
+| **PDF Parsing**  | `pdf-parse` (Node.js)                                 |
+| **File Upload**  | Cloudinary                                           |
+| **Maps**         | Google Maps / Mapbox API                             |
+| **Deployment**   | Netlify/Vercel (frontend), Render/Railway (backend), MongoDB Atlas |
+
+---
+
+## 📦 Development Setup
+
+### 1. Clone repo  
 ```bash
-git clone https://github.com/your-username/legal-affairs-platform-app.git
-cd legal-ai-platform
-```
+git clone https://github.com/thedgarg31/legal-affairs-platform-app.git
+cd legal-affairs-platform-app
+````
 
-### 2️⃣ Install Dependencies
-
-**Backend:**
+### 2. Backend setup
 
 ```bash
 cd backend
-npm install
+npm install express mongoose cors dotenv socket.io pdf-parse
+npm install --save-dev nodemon
 ```
 
-**Frontend:**
+### 3. Frontend setup
 
 ```bash
 cd ../frontend
-npm install
+npm install axios react-router-dom socket.io-client tailwindcss
+npm install react-whatsapp # optional chat UI enhancement
 ```
 
-### 3️⃣ Start the Development Servers
-
-**Backend:**
+### 4. Run servers
 
 ```bash
+# Backend
+cd backend
+npm run dev
+
+# Frontend
+cd ../frontend
 npm start
 ```
 
-Runs on: `http://localhost:5000`
+### 5. Env variables
 
-**Frontend:**
+**Frontend (.env):**
 
-```bash
-npm start
 ```
-
-Runs on: `http://localhost:3000`
-
-### 4️⃣ Environment Variables
-
-**Frontend:**
-
-Create a `.env` file in `/frontend`:
-
-```env
 REACT_APP_API_URL=http://localhost:5000/api
 ```
 
-**Backend:**
-(Optional) Create a `.env` file for custom port or secrets.
+**Backend (.env):**
+
+```
+PORT=5000
+MONGO_URI=<your_mongo_connection_string>
+JWT_SECRET=<your_jwt_secret>
+CLOUDINARY_URL=<cloudinary_config>
+OPENAI_API_KEY=<openai_api_key>
+MAP_API_KEY=<google_or_mapbox_key>
+```
 
 ---
 
-## 📄 Usage
+## 💡 How to Use
 
-1. **Login**
+1. Register or log in
+2. **Clients:**
 
-   * Use any email/password (demo mode).
+   * Upload PDF → view analysis
+   * Search for nearby lawyers → start chat
+   * Track cases and updates through the dashboard
+3. **Lawyers:**
 
-2. **Document Analysis**
-
-   * Go to **"Document Analysis"**, upload a PDF, and get **AI-powered highlights** and **risk summaries**.
-
-3. **Review**
-
-   * Review **flagged clauses** and **dashboard insights**.
-
-4. **Test Locally or Deploy**
-
-   * Fully functional locally or deploy to your preferred cloud platform.
+   * Sign up and verify credentials
+   * Manage chats and document reviews
+   * Advertise with optional featured profile
 
 ---
 
 ## 🧑‍💻 Contributing
 
-* **Pull requests are welcome!**
-* For major changes, please open an issue first to **discuss** what you would like to change.
+* PRs welcome! For major changes, please open an issue first to discuss.
+* Ensure code quality, consistent UI, and testing before submitting.
 
+---
 
-📞 Contact
-For questions or demo requests, contact dgav3105@gmail.com,ahmedsiddiquefarhan@gmail.com,jaivardhansingh785@gmail.com, aryanbalhara3700@gmail.com
+## 📞 Contact
 
-**Transforming legal document analysis with AI technology.**
-**Powered by cutting-edge artificial intelligence.**
+For questions or demo requests, reach out to:
+
+* [dgav3105@gmail.com](mailto:dgav3105@gmail.com)
+* [ahmedsiddiquefarhan@gmail.com](mailto:ahmedsiddiquefarhan@gmail.com)
+* [jaivardhansingh785@gmail.com](mailto:jaivardhansingh785@gmail.com)
+* [aryanbalhara3700@gmail.com](mailto:aryanbalhara3700@gmail.com)
+
+---
+
+**Transform legal document analysis with AI—fast, secure, and accessible.**
+
+```
